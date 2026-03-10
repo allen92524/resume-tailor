@@ -175,11 +175,69 @@ Key flags: `--format pdf`, `--skip-questions`, `--skip-assessment`, `--resume-se
 
 See [USAGE.md](USAGE.md) for the complete reference with all flags, workflows, and troubleshooting.
 
+## REST API
+
+Resume Tailor also provides a FastAPI REST API for programmatic access.
+
+### Start the server
+
+```bash
+make api
+# or: uvicorn src.web:app --reload --port 8000
+```
+
+API docs are available at `http://localhost:8000/docs` (Swagger UI) and `http://localhost:8000/redoc`.
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/health` | Health check — returns status and API key presence |
+| `POST` | `/api/v1/analyze-jd` | Analyze a job description, returns structured skills/keywords/responsibilities |
+| `POST` | `/api/v1/assess-compatibility` | Score resume-JD match (0-100%) with detailed breakdown |
+| `POST` | `/api/v1/generate` | Generate a tailored resume as JSON |
+| `POST` | `/api/v1/generate/pdf` | Generate a tailored resume and download as PDF |
+| `POST` | `/api/v1/review` | Review a resume — score, strengths, weaknesses, improved bullets |
+
+### Example requests
+
+```bash
+# Health check
+curl http://localhost:8000/api/v1/health
+
+# Analyze a job description
+curl -X POST http://localhost:8000/api/v1/analyze-jd \
+  -H "Content-Type: application/json" \
+  -d '{"jd_text": "We are looking for a Senior Python Developer..."}'
+
+# Assess compatibility
+curl -X POST http://localhost:8000/api/v1/assess-compatibility \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}'
+
+# Generate tailored resume
+curl -X POST http://localhost:8000/api/v1/generate \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer...", "additional_context": "I also know Go"}'
+
+# Generate and download PDF
+curl -X POST http://localhost:8000/api/v1/generate/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}' \
+  -o resume.pdf
+
+# Review resume
+curl -X POST http://localhost:8000/api/v1/review \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe, Software Engineer..."}'
+```
+
 ## Project Structure
 
 ```
 src/
 ├── main.py                # CLI entry point (click commands)
+├── web.py                 # FastAPI REST API entry point
 ├── api.py                 # API call helpers with retry logic
 ├── config.py              # Centralized configuration
 ├── models.py              # Data models (dataclasses)

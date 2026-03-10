@@ -23,6 +23,7 @@ resume-tailor/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py            # CLI entry point (click commands)
+│   ├── web.py             # FastAPI REST API entry point
 │   ├── api.py             # Shared API call helpers with retry logic
 │   ├── config.py          # Centralized configuration constants
 │   ├── models.py          # Data models (dataclasses for all structured data)

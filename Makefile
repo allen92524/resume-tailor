@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-profile dry-run docker-build docker-run clean
+.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -38,6 +38,9 @@ run-profile: ## Run generate with PROFILE=name (e.g. make run-profile PROFILE=jo
 
 dry-run: ## Run with --dry-run flag
 	$(PYTHON) src/main.py generate --dry-run
+
+api: ## Start the FastAPI server on port 8000
+	$(VENV)/bin/uvicorn src.web:app --reload --port 8000
 
 docker-build: ## Build Docker image
 	docker build -t resume-tailor .
