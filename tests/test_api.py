@@ -103,3 +103,44 @@ class TestParseJsonResponse:
         data = {"outer": {"inner": [1, 2, 3]}}
         result = parse_json_response(json.dumps(data))
         assert result == data
+
+    def test_json_embedded_in_prose(self):
+        text = 'Here is the analysis:\n{"score": 85, "match": true}\nHope that helps!'
+        result = parse_json_response(text)
+        assert result == {"score": 85, "match": True}
+
+    def test_trailing_commas(self):
+        text = '{"key": "value", "list": [1, 2, 3,],}'
+        result = parse_json_response(text)
+        assert result == {"key": "value", "list": [1, 2, 3]}
+
+    def test_single_quotes_only(self):
+        text = "{'key': 'value', 'num': 42}"
+        result = parse_json_response(text)
+        assert result == {"key": "value", "num": 42}
+
+    def test_json_array_in_prose(self):
+        text = 'The results are: [{"a": 1}, {"b": 2}] end.'
+        result = parse_json_response(text)
+        assert result == [{"a": 1}, {"b": 2}]
+
+    def test_extra_data_after_json(self):
+        """Ollama sometimes returns valid JSON followed by extra text."""
+        text = '{"score": 85, "match": true}\n\nHere is some extra explanation text.'
+        result = parse_json_response(text)
+        assert result == {"score": 85, "match": True}
+
+    def test_extra_data_in_code_fence(self):
+        text = '```json\n{"key": "value"}\n```\nextra stuff\n{"another": "object"}'
+        result = parse_json_response(text)
+        assert result == {"key": "value"}
+
+    def test_extra_data_complex_object(self):
+        """Valid JSON object followed by another JSON object."""
+        text = '{"gaps": [], "strengths": ["Python"]}{"extra": "data"}'
+        result = parse_json_response(text)
+        assert result == {"gaps": [], "strengths": ["Python"]}
+
+    def test_truly_invalid_still_raises(self):
+        with pytest.raises(json.JSONDecodeError):
+            parse_json_response("no json here at all")

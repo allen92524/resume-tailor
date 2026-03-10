@@ -4,7 +4,7 @@ import logging
 
 from .api import parse_json_response
 from .config import DEFAULT_MODEL, MAX_TOKENS_JD_ANALYSIS
-from .llm_client import call_llm
+from .llm_client import call_llm, normalize_response
 from .models import JDAnalysis
 from .prompts import (
     JD_ANALYSIS_SYSTEM,
@@ -46,7 +46,12 @@ def analyze_jd(
         user_content=user_content,
     )
 
-    data = parse_json_response(response_text)
+    try:
+        data = parse_json_response(response_text)
+    except Exception:
+        logger.warning("Failed to parse JD analysis response. Raw LLM output:\n%s", response_text)
+        raise
+    data = normalize_response(data, schema="jd_analysis")
     result = JDAnalysis.from_dict(data)
     logger.info(
         "JD analysis complete: role=%s, company=%s", result.job_title, result.company

@@ -5,7 +5,7 @@ import logging
 
 from .api import parse_json_response
 from .config import DEFAULT_MODEL, MAX_TOKENS_GAP_ANALYSIS
-from .llm_client import call_llm
+from .llm_client import call_llm, is_ollama_model, normalize_response
 from .models import GapAnalysis, JDAnalysis
 from .prompts import GAP_ANALYSIS_SYSTEM, GAP_ANALYSIS_USER
 
@@ -32,7 +32,14 @@ def analyze_gaps(
         ),
     )
 
-    data = parse_json_response(response_text)
+    try:
+        data = parse_json_response(response_text)
+    except Exception:
+        logger.warning("Failed to parse gap analysis response. Raw LLM output:\n%s", response_text)
+        raise
+    if is_ollama_model(model):
+        logger.debug("Raw gap analysis response from Ollama: %s", data)
+    data = normalize_response(data, schema="gap_analysis")
     result = GapAnalysis.from_dict(data)
     logger.info(
         "Gap analysis complete: %d gaps, %d strengths",

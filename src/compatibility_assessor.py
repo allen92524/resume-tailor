@@ -7,7 +7,7 @@ import click
 
 from .api import parse_json_response
 from .config import DEFAULT_MODEL, MAX_TOKENS_COMPATIBILITY
-from .llm_client import call_llm
+from .llm_client import call_llm, normalize_response
 from .models import CompatibilityAssessment, JDAnalysis
 from .prompts import COMPATIBILITY_ASSESSMENT_SYSTEM, COMPATIBILITY_ASSESSMENT_USER
 
@@ -34,7 +34,14 @@ def assess_compatibility(
         ),
     )
 
-    data = parse_json_response(response_text)
+    try:
+        data = parse_json_response(response_text)
+    except Exception:
+        logger.warning(
+            "Failed to parse compatibility response. Raw LLM output:\n%s", response_text
+        )
+        raise
+    data = normalize_response(data, schema="compatibility")
     result = CompatibilityAssessment.from_dict(data)
     logger.info(
         "Compatibility score: %d%% (proceed=%s)", result.match_score, result.proceed

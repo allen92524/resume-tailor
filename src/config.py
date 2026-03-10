@@ -6,6 +6,10 @@ import os
 DEFAULT_MODEL = "claude"
 CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "300"))  # seconds
+OLLAMA_RETRY_ATTEMPTS = 3
+OLLAMA_RETRY_DELAY = 10  # seconds between retries
+OLLAMA_READY_TIMEOUT = 30  # seconds to wait for Ollama to be ready
 
 # Alias for backward compatibility within call_api
 MODEL = CLAUDE_MODEL
@@ -17,6 +21,7 @@ MAX_TOKENS_CONTACT_EXTRACTION = 1024
 MAX_TOKENS_REVIEW = 4096
 MAX_TOKENS_IMPROVE = 4096
 MAX_TOKENS_VALIDATE = 1
+MAX_GAP_QUESTIONS = 10
 
 # Retry settings (tenacity)
 RETRY_MAX_ATTEMPTS = 3

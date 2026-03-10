@@ -5,7 +5,7 @@ import logging
 
 from .api import parse_json_response
 from .config import DEFAULT_MODEL, MAX_TOKENS_RESUME_GENERATION
-from .llm_client import call_llm
+from .llm_client import call_llm, normalize_response
 from .models import ResumeContent, JDAnalysis
 from .prompts import RESUME_GENERATION_SYSTEM, RESUME_GENERATION_USER
 
@@ -37,7 +37,14 @@ def generate_tailored_resume(
         ),
     )
 
-    data = parse_json_response(response_text)
+    try:
+        data = parse_json_response(response_text)
+    except Exception:
+        logger.warning(
+            "Failed to parse resume generation response. Raw LLM output:\n%s", response_text
+        )
+        raise
+    data = normalize_response(data, schema="resume_content")
     result = ResumeContent.from_dict(data)
     logger.info(
         "Resume generated: %d experience entries, %d skills",

@@ -62,9 +62,74 @@ def call_api(
 
 
 def parse_json_response(text: str) -> dict:
-    """Extract and parse JSON from Claude's response, handling code blocks."""
+    """Extract and parse JSON from an LLM response with resilient fallbacks.
+
+    Tries in order:
+    1. Extract from ```json fences
+    2. Extract from ``` fences
+    3. Parse raw text as JSON
+    4. Extract first { ... } or [ ... ] block
+    5. Fix common issues (trailing commas, single quotes)
+    Raises json.JSONDecodeError if all attempts fail.
+    """
+    import re
+
+    original = text
+
+    # Step 1-2: Try extracting from markdown code fences
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0]
     elif "```" in text:
         text = text.split("```")[1].split("```")[0]
-    return json.loads(text.strip())
+
+    # Step 3: Try strict parse
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError as e:
+        # Step 3b: "Extra data" means valid JSON followed by trailing text —
+        # parse the first complete JSON object and ignore the rest.
+        if "Extra data" in str(e):
+            result, _ = json.JSONDecoder().raw_decode(text.strip())
+            return result
+
+    # Step 4: Try extracting the first JSON object/array from the raw text
+    # (handles cases where the model wraps JSON in prose)
+    brace_match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", original)
+    if brace_match:
+        candidate = brace_match.group(1)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as e:
+            if "Extra data" in str(e):
+                result, _ = json.JSONDecoder().raw_decode(candidate)
+                return result
+            # Step 5: Fix common local-model issues
+            fixed = _fix_json(candidate)
+            try:
+                return json.loads(fixed)
+            except json.JSONDecodeError as e2:
+                if "Extra data" in str(e2):
+                    result, _ = json.JSONDecoder().raw_decode(fixed)
+                    return result
+
+    # Final: raise with the original text for debugging
+    try:
+        return json.loads(original.strip())
+    except json.JSONDecodeError as e:
+        if "Extra data" in str(e):
+            result, _ = json.JSONDecoder().raw_decode(original.strip())
+            return result
+        raise
+
+
+def _fix_json(text: str) -> str:
+    """Attempt to fix common JSON issues from local models."""
+    import re
+
+    # Remove trailing commas before } or ]
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    # Replace single quotes with double quotes (but not inside strings with apostrophes)
+    # Only do this if there are no double quotes at all (clearly single-quote JSON)
+    if '"' not in text and "'" in text:
+        text = text.replace("'", '"')
+    return text

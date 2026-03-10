@@ -211,6 +211,8 @@ No API key needed. The `--model` flag works with both `generate` and `review`:
 python src/main.py review --model ollama:qwen3.5
 ```
 
+On startup, Resume Tailor will automatically check Ollama connectivity, validate that the model is available, and warm up the model by loading it into memory. You can configure the timeout via the `OLLAMA_TIMEOUT` environment variable (default: 300 seconds).
+
 ### Available models
 
 Any Ollama model works. Some good choices:
@@ -644,6 +646,50 @@ If using Docker Compose, make sure the Ollama container is healthy:
 ```bash
 docker compose -f docker-compose.full.yml ps
 ```
+
+### Ollama request times out
+
+Local inference is slow, especially on CPU. Try:
+
+1. **Increase the timeout** — set `OLLAMA_TIMEOUT` environment variable (default is 300 seconds):
+   ```bash
+   export OLLAMA_TIMEOUT=600
+   ```
+2. **Use a smaller model** — smaller models are much faster on CPU:
+   ```bash
+   python src/main.py generate --model ollama:qwen3.5:1.5b
+   python src/main.py generate --model ollama:gemma3
+   ```
+3. **Pre-load the model** — the first run is slowest because the model must load into memory. Resume Tailor now warms up the model automatically, but you can also do it manually:
+   ```bash
+   ollama run qwen3.5 "hi"
+   ```
+
+### Ollama model not found
+
+If you see "Model 'xyz' not found", pull it first:
+
+```bash
+ollama pull qwen3.5
+```
+
+List available models:
+
+```bash
+ollama list
+```
+
+### Ollama out of memory
+
+Large models need lots of RAM. The `docker-compose.full.yml` sets an 8GB limit. If you're running out of memory:
+
+- Use a smaller model (e.g., `ollama:qwen3.5:1.5b` or `ollama:gemma3`)
+- Close other applications to free RAM
+- Increase Docker's memory limit in Docker Desktop settings
+
+### Ollama returns malformed JSON
+
+Local models sometimes produce invalid JSON. Resume Tailor has built-in fallback parsing that handles common issues (trailing commas, markdown fences, etc.). If you still get JSON errors, try a different model — some models are better at structured output than others.
 
 ### My profile got corrupted
 

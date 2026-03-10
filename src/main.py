@@ -16,11 +16,12 @@ from src.config import (
     MODEL,
     DEFAULT_MODEL,
     MAX_TOKENS_VALIDATE,
+    MAX_GAP_QUESTIONS,
     DEFAULT_OUTPUT_FORMAT,
     DEFAULT_PROFILE,
     get_profile_path,
 )
-from src.llm_client import is_ollama_model
+from src.llm_client import is_ollama_model, get_ollama_model_name, prepare_ollama
 from src.models import (
     ResumeContent,
     JDAnalysis,
@@ -560,7 +561,14 @@ def profile_restore(ctx):
 def review(ctx, model):
     """Review your base resume for quality and get improvement suggestions."""
     pname = ctx.obj["profile_name"]
-    if not is_ollama_model(model):
+    if is_ollama_model(model):
+        click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
+        try:
+            prepare_ollama(model)
+        except (ConnectionError, RuntimeError) as e:
+            click.echo(f"Error: {e}")
+            sys.exit(1)
+    else:
         validate_api_key()
 
     prof = load_profile(pname)
@@ -688,7 +696,12 @@ def generate(
             click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
         )
     elif is_ollama_model(model):
-        click.echo(f"Using local Ollama model: {model.split(':', 1)[1]}")
+        click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
+        try:
+            prepare_ollama(model)
+        except (ConnectionError, RuntimeError) as e:
+            click.echo(f"Error: {e}")
+            sys.exit(1)
     else:
         # Validate API key before collecting any input
         validate_api_key()
@@ -906,7 +919,8 @@ def generate(
         click.echo("[DRY RUN] Loading mock JD analysis...")
         jd_analysis = JDAnalysis.from_dict(_load_mock_fixture("mock_jd_analysis.json"))
     else:
-        click.echo("Sending job description to Claude for analysis...")
+        _model_label = get_ollama_model_name(model) if is_ollama_model(model) else "Claude"
+        click.echo(f"Analyzing job description using {_model_label}...")
         try:
             jd_analysis = analyze_jd(jd_text, reference_text=reference_text, model=model)
         except Exception as e:
@@ -985,7 +999,26 @@ def generate(
                     "\nI have a few questions based on gaps between your resume and the JD."
                     "\nAnswer each one, or press Enter to skip.\n"
                 )
+                seen_questions: set[str] = set()
+                question_count = 0
                 for gap in gap_result.gaps:
+                    # Safety: never ask more than MAX_GAP_QUESTIONS
+                    if question_count >= MAX_GAP_QUESTIONS:
+                        logger.debug(
+                            "Reached max gap questions limit (%d), stopping",
+                            MAX_GAP_QUESTIONS,
+                        )
+                        break
+                    # Skip gaps with empty questions
+                    if not gap.question.strip():
+                        continue
+                    # Deduplicate: skip if we already asked this question
+                    q_key = gap.question.strip().lower()
+                    if q_key in seen_questions:
+                        logger.debug("Skipping duplicate question: %s", gap.question)
+                        continue
+                    seen_questions.add(q_key)
+                    question_count += 1
                     skill = gap.skill
                     saved = lookup_experience(prof, skill)
                     if saved:

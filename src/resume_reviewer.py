@@ -8,7 +8,7 @@ import click
 
 from .api import parse_json_response
 from .config import DEFAULT_MODEL, MAX_TOKENS_REVIEW, MAX_TOKENS_IMPROVE
-from .llm_client import call_llm
+from .llm_client import call_llm, normalize_response
 from .models import ResumeReview
 from .prompts import (
     RESUME_REVIEW_SYSTEM,
@@ -38,7 +38,14 @@ def review_resume(resume_text: str, model: str = DEFAULT_MODEL) -> ResumeReview:
         user_content=RESUME_REVIEW_USER.format(resume_text=resume_text),
     )
 
-    data = parse_json_response(response_text)
+    try:
+        data = parse_json_response(response_text)
+    except Exception:
+        logger.warning(
+            "Failed to parse resume review response. Raw LLM output:\n%s", response_text
+        )
+        raise
+    data = normalize_response(data, schema="resume_review")
     result = ResumeReview.from_dict(data)
     logger.info("Review complete: score=%d/100", result.overall_score)
     return result

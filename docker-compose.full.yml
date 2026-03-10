@@ -5,6 +5,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama-models:/root/.ollama
+    # Minimum 8GB RAM recommended for running LLMs. Increase for larger models.
+    mem_limit: 8g
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s

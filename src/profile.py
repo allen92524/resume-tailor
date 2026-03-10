@@ -90,7 +90,14 @@ def extract_identity(resume_text: str) -> Identity:
         user_content=CONTACT_EXTRACTION_USER.format(resume_text=resume_text),
     )
 
-    data = parse_json_response(response_text)
+    try:
+        data = parse_json_response(response_text)
+    except Exception:
+        logger.warning(
+            "Failed to parse contact extraction response. Raw LLM output:\n%s",
+            response_text,
+        )
+        raise
     return Identity.from_dict(data)
 
 
