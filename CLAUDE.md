@@ -17,14 +17,21 @@ resume-tailor/
 ├── README.md              # User-facing documentation
 ├── USAGE.md               # Quick reference guide for all commands/flags
 ├── FLOW.md                # Source of truth for generate command flow
-├── Makefile               # Dev commands: make test, make lint, make run
+├── Makefile               # Dev commands: make test, make lint, make run, deploy, release
+├── VERSION                # Current semantic version (e.g. 1.3.0)
+├── Dockerfile             # Container image definition
+├── .dockerignore          # Docker build ignore rules
 ├── requirements.txt       # Python dependencies (runtime)
 ├── requirements-dev.txt   # Dev dependencies (ruff, black, pytest)
+├── .github/
+│   └── workflows/
+│       └── ci.yml         # GitHub Actions CI (lint + test on push/PR)
 ├── src/
 │   ├── __init__.py
 │   ├── main.py            # CLI entry point (click commands)
 │   ├── web.py             # FastAPI REST API entry point
 │   ├── api.py             # Shared API call helpers with retry logic
+│   ├── telemetry.py       # OpenTelemetry tracing & Prometheus metrics
 │   ├── config.py          # Centralized configuration constants
 │   ├── models.py          # Data models (dataclasses for all structured data)
 │   ├── profile.py         # User profile management (~/.resume-tailor/)
@@ -41,8 +48,32 @@ resume-tailor/
 │       ├── PROMPTS.md     # Prompt documentation
 │       └── *.md           # Individual prompt templates
 ├── helm/                  # Helm chart for Kubernetes deployment
-│   └── resume-tailor/     # Chart: templates, values, helpers
+│   └── resume-tailor/
+│       ├── Chart.yaml     # Chart metadata and version
+│       ├── values.yaml    # Default configuration values
+│       ├── dashboards/
+│       │   └── resume-tailor-dashboard.json  # Grafana dashboard definition
+│       └── templates/
+│           ├── _helpers.tpl           # Helm helper functions
+│           ├── deployment.yaml        # K8s Deployment
+│           ├── service.yaml           # K8s Service
+│           ├── ingress.yaml           # K8s Ingress
+│           ├── configmap.yaml         # Non-sensitive config
+│           ├── secret.yaml            # API key secret
+│           ├── servicemonitor.yaml    # Prometheus ServiceMonitor
+│           ├── configmap-grafana-dashboard.yaml  # Grafana dashboard ConfigMap
+│           └── NOTES.txt              # Post-install notes
+├── argocd/                # GitOps deployment with ArgoCD
+│   ├── application.yaml   # ArgoCD Application manifest
+│   └── README.md          # ArgoCD setup instructions
+├── grafana/               # Standalone Grafana dashboard
+│   └── resume-tailor-dashboard.json
+├── scripts/
+│   └── bump-version.sh   # Semantic versioning bump script
 ├── tests/                 # Test suite
+│   ├── conftest.py        # Pytest configuration & fixtures
+│   ├── fixtures/          # Mock data for tests
+│   └── test_*.py          # Test modules
 ├── examples/
 │   ├── sample_resume.txt  # Example resume for testing
 │   └── sample_jd.txt      # Example JD for testing
@@ -66,6 +97,31 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - Shared rules in `src/prompts/shared_rules.md`, injected via `{%SECTION%}` markers
 - Use structured output (JSON) for parsed data
 - API calls: JD analysis, gap analysis, compatibility assessment, resume generation, resume review/improve, contact extraction
+- Each API call tracked with OpenTelemetry spans and Prometheus metrics via `src/telemetry.py`
+
+### REST API (FastAPI)
+- Entry point: `src/web.py`, run with `make api` or `uvicorn src.web:app`
+- Endpoints under `/api/v1/`: health, analyze-jd, assess-compatibility, generate, generate/pdf, review
+- `/metrics` endpoint exposes Prometheus metrics
+- CORS middleware enabled, OpenTelemetry auto-instrumentation on all routes
+
+### Observability
+- `src/telemetry.py` sets up OpenTelemetry tracing and Prometheus metrics
+- Traces export to console by default; set `OTEL_EXPORTER_OTLP_ENDPOINT` for OTLP collector
+- Prometheus metrics: HTTP request count/duration/active, Claude API calls/duration, resume generations
+- Grafana dashboard in `grafana/resume-tailor-dashboard.json` (also provisioned via Helm)
+- Kubernetes: enable ServiceMonitor and Grafana dashboard via Helm values
+
+### Deployment
+- **Docker:** `Dockerfile` for containerized builds
+- **Helm:** Chart in `helm/resume-tailor/` for Kubernetes deployment
+- **ArgoCD:** GitOps auto-deploy from `argocd/application.yaml` — watches `main` branch
+- **CI/CD:** GitHub Actions (`.github/workflows/ci.yml`) runs lint + tests on push/PR
+
+### Versioning
+- Semantic versioning tracked in `VERSION` file
+- `scripts/bump-version.sh` updates VERSION, Helm Chart.yaml, commits, and tags
+- Makefile targets: `release-patch`, `release-minor`, `release-major`, `release-push`
 
 ### DOCX Output Format
 - Clean, professional, ATS-friendly format
@@ -102,7 +158,18 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - [x] PDF output via LibreOffice conversion
 - [x] Markdown output
 
-### Phase 4: Web UI (Future)
+### Phase 4: REST API & Infrastructure — Done
+- [x] FastAPI REST API with all core endpoints
+- [x] Docker containerization
+- [x] Helm chart for Kubernetes deployment
+- [x] ArgoCD GitOps auto-deploy
+- [x] OpenTelemetry tracing and Prometheus metrics
+- [x] Grafana dashboard (standalone + Helm-provisioned)
+- [x] ServiceMonitor for Prometheus Operator
+- [x] GitHub Actions CI pipeline
+- [x] Automated semantic versioning with release scripts
+
+### Phase 5: Web UI (Future)
 - [ ] Streamlit or Next.js frontend
 - [ ] Side-by-side comparison view
 - [ ] Resume history/versioning

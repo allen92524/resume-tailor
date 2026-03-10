@@ -219,6 +219,66 @@ make argocd-status   # Check sync status
 
 See [argocd/README.md](argocd/README.md) for full details.
 
+## Observability
+
+The API includes built-in OpenTelemetry tracing and Prometheus metrics.
+
+### Prometheus Metrics
+
+The `/metrics` endpoint exposes metrics in Prometheus format:
+
+```bash
+# Start the API
+make api
+
+# View raw metrics
+make metrics
+# or: curl http://localhost:8000/metrics
+```
+
+Available metrics:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total` | Counter | Total requests by method, endpoint, status code |
+| `http_request_duration_seconds` | Histogram | Request latency by method and endpoint |
+| `http_active_requests` | Gauge | Currently in-flight requests |
+| `claude_api_calls_total` | Counter | Claude API calls by model and status |
+| `claude_api_call_duration_seconds` | Histogram | Claude API call latency by model |
+| `resume_generations_total` | Counter | Total successful resume generations |
+
+### OpenTelemetry Tracing
+
+Traces are exported to the console by default. To send traces to an OTLP collector:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
+make api
+```
+
+### Grafana Dashboard
+
+A pre-built dashboard is available at `grafana/resume-tailor-dashboard.json`. Import it into Grafana manually or deploy via Helm (see below).
+
+Panels: Request Rate, Response Time (P50/P95/P99), Error Rate, Claude API Latency, Active Requests, Resume Generations.
+
+### Kubernetes Monitoring
+
+Enable the Prometheus ServiceMonitor and Grafana dashboard auto-import in Helm:
+
+```bash
+helm upgrade --install resume-tailor helm/resume-tailor \
+  --set apiKey=$ANTHROPIC_API_KEY \
+  --set metrics.serviceMonitor.enabled=true \
+  --set metrics.grafanaDashboard.enabled=true
+```
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `metrics.serviceMonitor.enabled` | `false` | Create a ServiceMonitor for Prometheus Operator |
+| `metrics.serviceMonitor.interval` | `30s` | Scrape interval |
+| `metrics.grafanaDashboard.enabled` | `false` | Create a ConfigMap for Grafana sidecar auto-import |
+
 ## How It Works
 
 ```
@@ -322,23 +382,31 @@ curl -X POST http://localhost:8000/api/v1/review \
 ## Project Structure
 
 ```
-src/
-├── main.py                # CLI entry point (click commands)
-├── web.py                 # FastAPI REST API entry point
-├── api.py                 # API call helpers with retry logic
-├── config.py              # Centralized configuration
-├── models.py              # Data models (dataclasses)
-├── profile.py             # Profile management (~/.resume-tailor/)
-├── session.py             # Session save/restore
-├── resume_parser.py       # Parse resume from text/docx/pdf
-├── jd_analyzer.py         # Analyze job descriptions
-├── gap_analyzer.py        # Compare resume vs JD requirements
-├── compatibility_assessor.py  # Score resume-JD match
-├── resume_generator.py    # Generate tailored resume content
-├── resume_reviewer.py     # Review and improve base resume
-├── docx_builder.py        # Build DOCX/PDF/Markdown output
-├── prompts.py             # Prompt template loader
-└── prompts/               # Prompt templates (Markdown files)
+resume-tailor/
+├── src/
+│   ├── main.py                # CLI entry point (click commands)
+│   ├── web.py                 # FastAPI REST API entry point
+│   ├── api.py                 # API call helpers with retry logic
+│   ├── telemetry.py           # OpenTelemetry tracing & Prometheus metrics
+│   ├── config.py              # Centralized configuration
+│   ├── models.py              # Data models (dataclasses)
+│   ├── profile.py             # Profile management (~/.resume-tailor/)
+│   ├── session.py             # Session save/restore
+│   ├── resume_parser.py       # Parse resume from text/docx/pdf
+│   ├── jd_analyzer.py         # Analyze job descriptions
+│   ├── gap_analyzer.py        # Compare resume vs JD requirements
+│   ├── compatibility_assessor.py  # Score resume-JD match
+│   ├── resume_generator.py    # Generate tailored resume content
+│   ├── resume_reviewer.py     # Review and improve base resume
+│   ├── docx_builder.py        # Build DOCX/PDF/Markdown output
+│   ├── prompts.py             # Prompt template loader
+│   └── prompts/               # Prompt templates (Markdown files)
+├── helm/resume-tailor/        # Helm chart for Kubernetes
+├── argocd/                    # ArgoCD GitOps deployment
+├── grafana/                   # Standalone Grafana dashboard
+├── scripts/                   # Release versioning scripts
+├── tests/                     # Test suite with fixtures
+└── VERSION                    # Semantic version file
 ```
 
 ## Contributing
@@ -359,6 +427,33 @@ make format
 # Run the tool
 make run
 ```
+
+### All Makefile Targets
+
+| Target | Description |
+|--------|-------------|
+| `make install` | Create venv and install runtime dependencies |
+| `make dev-install` | Install runtime + dev dependencies |
+| `make test` | Run pytest |
+| `make lint` | Run ruff linter |
+| `make format` | Run black formatter |
+| `make run` | Run the generate command |
+| `make run-profile PROFILE=name` | Run generate with a named profile |
+| `make dry-run` | Run with mock data (no API calls) |
+| `make api` | Start FastAPI server on port 8000 |
+| `make metrics` | Fetch raw Prometheus metrics from running API |
+| `make docker-build` | Build Docker image |
+| `make docker-run` | Run Docker container interactively |
+| `make helm-install` | Install/upgrade Helm chart to Kubernetes |
+| `make helm-uninstall` | Uninstall Helm chart |
+| `make helm-template` | Render Helm templates locally (dry-run) |
+| `make argocd-setup` | Create API key secret and apply ArgoCD app |
+| `make argocd-status` | Check ArgoCD sync status |
+| `make release-patch` | Bump patch version, commit, and tag |
+| `make release-minor` | Bump minor version, commit, and tag |
+| `make release-major` | Bump major version, commit, and tag |
+| `make release-push` | Push commits and tags to GitHub |
+| `make clean` | Remove venv, pycache, and output files |
 
 ## License
 

@@ -3,6 +3,10 @@
 import json
 import os
 
+# Disable OpenTelemetry SDK to prevent "I/O operation on closed file" warnings
+# from the ConsoleSpanExporter during test process teardown.
+os.environ.setdefault("OTEL_SDK_DISABLED", "true")
+
 import pytest
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")

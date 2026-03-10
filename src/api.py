@@ -12,6 +12,7 @@ from tenacity import (
 )
 
 from .config import RETRY_MAX_ATTEMPTS, RETRY_MIN_WAIT, RETRY_MAX_WAIT
+from .telemetry import track_claude_api_call
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +47,18 @@ def call_api(
     Returns the text content of the first response block.
     """
     logger.debug("API call: model=%s, max_tokens=%d", model, max_tokens)
-    client = anthropic.Anthropic()
-    message = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        messages=[{"role": "user", "content": user_content}],
-        system=system,
-    )
-    text = message.content[0].text
-    logger.debug("API response length: %d chars", len(text))
-    return text
+    with track_claude_api_call(model) as span:
+        client = anthropic.Anthropic()
+        message = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": user_content}],
+            system=system,
+        )
+        text = message.content[0].text
+        span.set_attribute("claude.response_length", len(text))
+        logger.debug("API response length: %d chars", len(text))
+        return text
 
 
 def parse_json_response(text: str) -> dict:

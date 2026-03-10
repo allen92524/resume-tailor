@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format run run-profile dry-run api metrics docker-build docker-run helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -41,6 +41,9 @@ dry-run: ## Run with --dry-run flag
 
 api: ## Start the FastAPI server on port 8000
 	$(VENV)/bin/uvicorn src.web:app --reload --port 8000
+
+metrics: ## Fetch raw Prometheus metrics from the running API
+	@curl -s http://localhost:8000/metrics
 
 docker-build: ## Build Docker image
 	docker build -t resume-tailor .

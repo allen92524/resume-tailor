@@ -1,0 +1,15 @@
+{{- if .Values.metrics.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "resume-tailor.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "resume-tailor.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+    {{- with .Values.metrics.grafanaDashboard.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  resume-tailor-dashboard.json: |-
+    {{- .Files.Get "dashboards/resume-tailor-dashboard.json" | nindent 4 }}
+{{- end }}

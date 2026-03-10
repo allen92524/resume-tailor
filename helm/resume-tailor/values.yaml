@@ -32,6 +32,17 @@ config:
   logLevel: "info"
   workers: "1"
 
+# Observability / metrics
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: "30s"
+    scrapeTimeout: "10s"
+    additionalLabels: {}
+  grafanaDashboard:
+    enabled: false
+    additionalLabels: {}
+
 nodeSelector: {}
 tolerations: []
 affinity: {}

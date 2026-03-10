@@ -228,6 +228,66 @@ make release-push
 4. Commits with message `release: vX.Y.Z`
 5. Creates a git tag `vX.Y.Z`
 
+## REST API
+
+Start the FastAPI server:
+
+```bash
+make api
+# or: uvicorn src.web:app --reload --port 8000
+```
+
+API docs: `http://localhost:8000/docs` (Swagger UI) or `http://localhost:8000/redoc`.
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/health` | Health check |
+| `POST` | `/api/v1/analyze-jd` | Analyze a job description |
+| `POST` | `/api/v1/assess-compatibility` | Score resume-JD match (0-100%) |
+| `POST` | `/api/v1/generate` | Generate a tailored resume as JSON |
+| `POST` | `/api/v1/generate/pdf` | Generate and download as PDF |
+| `POST` | `/api/v1/review` | Review a resume with AI feedback |
+| `GET` | `/metrics` | Prometheus metrics |
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/api/v1/generate \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer...", "additional_context": "I also know Go"}'
+```
+
+## Makefile Targets
+
+Run `make help` to see all targets. Key ones:
+
+| Target | Description |
+|--------|-------------|
+| `make install` | Create venv and install dependencies |
+| `make dev-install` | Install runtime + dev dependencies |
+| `make test` | Run pytest |
+| `make lint` | Run ruff linter |
+| `make format` | Run black formatter |
+| `make run` | Run the generate command |
+| `make run-profile PROFILE=name` | Run with a named profile |
+| `make dry-run` | Run with mock data (no API calls) |
+| `make api` | Start FastAPI server |
+| `make metrics` | Fetch Prometheus metrics from running API |
+| `make docker-build` | Build Docker image |
+| `make docker-run` | Run Docker container |
+| `make helm-install` | Install/upgrade Helm chart |
+| `make helm-uninstall` | Uninstall Helm chart |
+| `make helm-template` | Render Helm templates locally |
+| `make argocd-setup` | Create secret + apply ArgoCD app |
+| `make argocd-status` | Check ArgoCD sync status |
+| `make release-patch` | Bump patch version, commit, tag |
+| `make release-minor` | Bump minor version, commit, tag |
+| `make release-major` | Bump major version, commit, tag |
+| `make release-push` | Push commits and tags to GitHub |
+| `make clean` | Remove venv, pycache, output files |
+
 ## Troubleshooting
 
 ### API key not set
@@ -271,7 +331,7 @@ If LibreOffice is not available, use `--format docx` and convert manually.
 ### File path format
 
 - Use forward slashes or escaped backslashes: `path/to/resume.docx`
-- Supported input formats: `.txt`, `.docx`
+- Supported input formats: `.txt`, `.docx`, `.pdf`
 - Tilde expansion works: `~/Documents/resume.docx`
 
 ### Profile issues
