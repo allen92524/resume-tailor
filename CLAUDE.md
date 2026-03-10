@@ -40,6 +40,8 @@ resume-tailor/
 │   └── prompts/           # Prompt template files (system + user per file)
 │       ├── PROMPTS.md     # Prompt documentation
 │       └── *.md           # Individual prompt templates
+├── helm/                  # Helm chart for Kubernetes deployment
+│   └── resume-tailor/     # Chart: templates, values, helpers
 ├── tests/                 # Test suite
 ├── examples/
 │   ├── sample_resume.txt  # Example resume for testing

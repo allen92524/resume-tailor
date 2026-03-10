@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run clean
+.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run helm-install helm-uninstall helm-template clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -51,6 +51,15 @@ docker-run: ## Run Docker container with interactive mode
 		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
 		-v $(PWD)/output:/output \
 		resume-tailor generate
+
+helm-install: ## Install/upgrade Helm chart to Kubernetes
+	helm upgrade --install resume-tailor helm/resume-tailor --set apiKey=$(ANTHROPIC_API_KEY)
+
+helm-uninstall: ## Uninstall Helm chart from Kubernetes
+	helm uninstall resume-tailor
+
+helm-template: ## Render Helm templates locally (dry-run)
+	helm template resume-tailor helm/resume-tailor
 
 clean: ## Remove venv, pycache, and output files
 	rm -rf $(VENV)

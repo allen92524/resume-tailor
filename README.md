@@ -132,6 +132,63 @@ docker run -it \
 docker compose run resume-tailor
 ```
 
+## Kubernetes Deployment
+
+Deploy the API to Kubernetes using the included Helm chart.
+
+### Prerequisites
+
+- [Helm](https://helm.sh/docs/intro/install/) v3+
+- A Kubernetes cluster (or [minikube](https://minikube.sigs.k8s.io/) for local development)
+
+### Quick start with minikube
+
+```bash
+# Build the Docker image and load it into minikube
+docker build -t resume-tailor:latest .
+minikube image load resume-tailor:latest
+
+# Install the Helm chart
+make helm-install
+# or: helm upgrade --install resume-tailor helm/resume-tailor --set apiKey=$ANTHROPIC_API_KEY
+
+# Port-forward to access the API
+kubectl port-forward svc/resume-tailor 8000:8000
+curl http://localhost:8000/api/v1/health
+```
+
+### Helm commands
+
+```bash
+make helm-install    # Install or upgrade the release
+make helm-uninstall  # Remove the release
+make helm-template   # Render templates locally (dry-run)
+```
+
+### Configuration
+
+Override defaults in `helm/resume-tailor/values.yaml` or pass `--set` flags:
+
+```bash
+helm upgrade --install resume-tailor helm/resume-tailor \
+  --set apiKey=$ANTHROPIC_API_KEY \
+  --set replicaCount=3 \
+  --set ingress.enabled=true \
+  --set ingress.host=resume-tailor.example.com
+```
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `replicaCount` | `1` | Number of pod replicas |
+| `image.repository` | `resume-tailor` | Docker image repository |
+| `image.tag` | `latest` | Docker image tag |
+| `service.port` | `8000` | Service port |
+| `ingress.enabled` | `false` | Enable Ingress resource |
+| `ingress.host` | `resume-tailor.local` | Ingress hostname |
+| `apiKey` | `""` | Anthropic API key (stored as Secret) |
+| `resources.limits.cpu` | `500m` | CPU limit |
+| `resources.limits.memory` | `512Mi` | Memory limit |
+
 ## How It Works
 
 ```

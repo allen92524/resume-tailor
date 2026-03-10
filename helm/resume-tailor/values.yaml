@@ -1,0 +1,37 @@
+replicaCount: 1
+
+image:
+  repository: resume-tailor
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  host: resume-tailor.local
+  annotations: {}
+  tls: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Anthropic API key — pass via --set apiKey=sk-ant-... or set here
+apiKey: ""
+
+# Non-sensitive configuration
+config:
+  logLevel: "info"
+  workers: "1"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
