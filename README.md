@@ -107,6 +107,20 @@ docker compose -f docker-compose.full.yml run --rm resume-tailor
 
 ---
 
+### Accessing local files in Docker
+
+When running with Docker (Options A or B), your **Downloads**, **Desktop**, and **Documents** folders are automatically mounted read-only into the container. You can reference files using their original paths — they're converted automatically:
+
+```
+~/Downloads/resume.pdf       → /mnt/downloads/resume.pdf
+~/Documents/my_resume.docx   → /mnt/documents/my_resume.docx
+~/Desktop/job_posting.txt    → /mnt/desktop/job_posting.txt
+```
+
+You can also place files in the `input/` folder in the project directory — they'll be available at `/mnt/input/` inside the container.
+
+---
+
 ### Option C: Install locally (no Docker)
 
 Best if you want to hack on the code or avoid Docker.

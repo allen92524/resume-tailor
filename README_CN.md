@@ -107,6 +107,20 @@ docker compose -f docker-compose.full.yml run --rm resume-tailor
 
 ---
 
+### 在 Docker 中访问本地文件
+
+使用 Docker 运行时（选项 A 或 B），你的 **Downloads**、**Desktop** 和 **Documents** 文件夹会自动以只读方式挂载到容器中。你可以直接使用原始路径引用文件，路径会自动转换：
+
+```
+~/Downloads/resume.pdf       → /mnt/downloads/resume.pdf
+~/Documents/my_resume.docx   → /mnt/documents/my_resume.docx
+~/Desktop/job_posting.txt    → /mnt/desktop/job_posting.txt
+```
+
+你也可以把文件放在项目目录下的 `input/` 文件夹中，在容器内通过 `/mnt/input/` 访问。
+
+---
+
 ### 选项 C：本地安装（无需 Docker）
 
 适合想修改代码或不想用 Docker 的用户。

@@ -5,9 +5,12 @@ import tempfile
 
 import pytest
 
+from unittest.mock import patch
+
 from src.resume_parser import (
     read_resume_from_file,
     _looks_like_file_path,
+    _convert_docker_path,
     read_input_smart,
 )
 
@@ -109,6 +112,39 @@ class TestReadResumeFromFile:
         # Should not crash even if path doesn't exist after expansion
         with pytest.raises(FileNotFoundError):
             read_resume_from_file("~/nonexistent_resume_12345.txt")
+
+
+class TestConvertDockerPath:
+    """Test Docker host-path to container-mount-path conversion."""
+
+    @patch("src.resume_parser._is_docker", return_value=True)
+    def test_macos_downloads(self, _mock):
+        assert _convert_docker_path("/Users/jane/Downloads/resume.pdf") == "/mnt/downloads/resume.pdf"
+
+    @patch("src.resume_parser._is_docker", return_value=True)
+    def test_linux_desktop(self, _mock):
+        assert _convert_docker_path("/home/jane/Desktop/resume.docx") == "/mnt/desktop/resume.docx"
+
+    @patch("src.resume_parser._is_docker", return_value=True)
+    def test_linux_documents(self, _mock):
+        assert _convert_docker_path("/home/user/Documents/cv.txt") == "/mnt/documents/cv.txt"
+
+    @patch("src.resume_parser._is_docker", return_value=True)
+    def test_windows_path_after_wsl_conversion(self, _mock):
+        # Windows paths are first converted to /mnt/c/... by _convert_windows_path
+        assert _convert_docker_path("/mnt/c/Users/Jane/Downloads/resume.pdf") == "/mnt/downloads/resume.pdf"
+
+    @patch("src.resume_parser._is_docker", return_value=True)
+    def test_tilde_downloads(self, _mock):
+        assert _convert_docker_path("~/Downloads/resume.pdf") == "/mnt/downloads/resume.pdf"
+
+    @patch("src.resume_parser._is_docker", return_value=True)
+    def test_unmatched_path_unchanged(self, _mock):
+        assert _convert_docker_path("/tmp/resume.pdf") == "/tmp/resume.pdf"
+
+    @patch("src.resume_parser._is_docker", return_value=False)
+    def test_not_in_docker_unchanged(self, _mock):
+        assert _convert_docker_path("/Users/jane/Downloads/resume.pdf") == "/Users/jane/Downloads/resume.pdf"
 
 
 class TestReadInputSmart:

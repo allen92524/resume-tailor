@@ -9,6 +9,53 @@ logger = logging.getLogger(__name__)
 # Matches Windows drive-letter paths like C:\Users\... or C:/Users/...
 _WINDOWS_PATH_RE = re.compile(r"^([A-Za-z]):[/\\]")
 
+# Host-path to container-mount mappings for Docker environments.
+# Order matters: more specific patterns first.
+_DOCKER_PATH_RULES: list[tuple[re.Pattern[str], str]] = [
+    # macOS / Linux: /Users/<user>/Downloads/... or /home/<user>/Downloads/...
+    (re.compile(r"^/(?:Users|home)/[^/]+/Downloads/(.*)"), "/mnt/downloads/"),
+    (re.compile(r"^/(?:Users|home)/[^/]+/Desktop/(.*)"), "/mnt/desktop/"),
+    (re.compile(r"^/(?:Users|home)/[^/]+/Documents/(.*)"), "/mnt/documents/"),
+    # Windows: C:\Users\<user>\Downloads\... (already converted to /mnt/c/...)
+    (
+        re.compile(r"^/mnt/[a-z]/Users/[^/]+/Downloads/(.*)"),
+        "/mnt/downloads/",
+    ),
+    (
+        re.compile(r"^/mnt/[a-z]/Users/[^/]+/Desktop/(.*)"),
+        "/mnt/desktop/",
+    ),
+    (
+        re.compile(r"^/mnt/[a-z]/Users/[^/]+/Documents/(.*)"),
+        "/mnt/documents/",
+    ),
+    # Tilde shorthand: ~/Downloads/...
+    (re.compile(r"^~/Downloads/(.*)"), "/mnt/downloads/"),
+    (re.compile(r"^~/Desktop/(.*)"), "/mnt/desktop/"),
+    (re.compile(r"^~/Documents/(.*)"), "/mnt/documents/"),
+]
+
+
+def _is_docker() -> bool:
+    """Return True when running inside a Docker container."""
+    return os.path.exists("/.dockerenv")
+
+
+def _convert_docker_path(path: str) -> str:
+    """Rewrite common host file paths to Docker container mount paths.
+
+    Only applies when running inside Docker (/.dockerenv exists).
+    """
+    if not _is_docker():
+        return path
+    for pattern, mount in _DOCKER_PATH_RULES:
+        m = pattern.match(path)
+        if m:
+            converted = mount + m.group(1)
+            logger.info("Docker path mapping: %s -> %s", path, converted)
+            return converted
+    return path
+
 
 def _convert_windows_path(path: str) -> str:
     """Convert a Windows path (e.g. C:\\Users\\...) to WSL format (/mnt/c/...).
@@ -27,6 +74,7 @@ def read_resume_from_file(file_path: str) -> str:
     """Read a resume from a file path. Supports .txt, .md, .docx, and .pdf."""
     file_path = _convert_windows_path(file_path.strip())
     file_path = os.path.expanduser(file_path)
+    file_path = _convert_docker_path(file_path)
 
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"Resume file not found: {file_path}")
