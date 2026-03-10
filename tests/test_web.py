@@ -104,7 +104,7 @@ class TestAssessCompatibility:
         )
         monkeypatch.setattr(
             "src.web.assess_compatibility",
-            lambda resume_text, jd_analysis: CompatibilityAssessment.from_dict(
+            lambda resume_text, jd_analysis, **kw: CompatibilityAssessment.from_dict(
                 mock_compat.copy()
             ),
         )
@@ -160,7 +160,7 @@ class TestGenerate:
         )
         monkeypatch.setattr(
             "src.web.generate_tailored_resume",
-            lambda resume_text, jd_analysis, user_additions="": ResumeContent.from_dict(
+            lambda resume_text, jd_analysis, user_additions="", **kw: ResumeContent.from_dict(
                 mock_resume.copy()
             ),
         )
@@ -181,7 +181,7 @@ class TestGenerate:
 
         captured = {}
 
-        def mock_gen(resume_text, jd_analysis, user_additions=""):
+        def mock_gen(resume_text, jd_analysis, user_additions="", **kw):
             captured["user_additions"] = user_additions
             return ResumeContent.from_dict(mock_resume.copy())
 
@@ -229,7 +229,7 @@ class TestGeneratePDF:
         )
         monkeypatch.setattr(
             "src.web.generate_tailored_resume",
-            lambda resume_text, jd_analysis, user_additions="": ResumeContent.from_dict(
+            lambda resume_text, jd_analysis, user_additions="", **kw: ResumeContent.from_dict(
                 mock_resume.copy()
             ),
         )
@@ -260,7 +260,7 @@ class TestGeneratePDF:
         )
         monkeypatch.setattr(
             "src.web.generate_tailored_resume",
-            lambda resume_text, jd_analysis, user_additions="": ResumeContent.from_dict(
+            lambda resume_text, jd_analysis, user_additions="", **kw: ResumeContent.from_dict(
                 mock_resume.copy()
             ),
         )
@@ -286,7 +286,7 @@ class TestReview:
 
         monkeypatch.setattr(
             "src.web.review_resume",
-            lambda resume_text: ResumeReview.from_dict(mock_review_data.copy()),
+            lambda resume_text, **kw: ResumeReview.from_dict(mock_review_data.copy()),
         )
 
         resp = client.post(
@@ -304,7 +304,7 @@ class TestReview:
         assert resp.status_code == 422
 
     def test_review_api_error(self, monkeypatch):
-        def raise_error(resume_text):
+        def raise_error(resume_text, **kw):
             raise RuntimeError("API call failed")
 
         monkeypatch.setattr("src.web.review_resume", raise_error)

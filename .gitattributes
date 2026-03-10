@@ -1,0 +1,11 @@
+# Force LF line endings for shell scripts and Docker files
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+Makefile text eol=lf
+
+# Mark binary formats so git doesn't try to diff them
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary

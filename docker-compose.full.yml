@@ -1,0 +1,44 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  resume-tailor:
+    build: .
+    stdin_open: true
+    tty: true
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ~/.resume-tailor:/root/.resume-tailor
+      - ./output:/output
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: ["generate", "--model", "ollama:qwen3.5", "--format", "pdf", "--output", "/output/"]
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["python", "-m", "uvicorn", "src.web:app", "--host", "0.0.0.0", "--port", "8000"]
+    profiles:
+      - api
+
+volumes:
+  ollama-models:

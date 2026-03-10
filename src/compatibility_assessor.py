@@ -5,8 +5,9 @@ import logging
 
 import click
 
-from .api import call_api, parse_json_response
-from .config import MODEL, MAX_TOKENS_COMPATIBILITY
+from .api import parse_json_response
+from .config import DEFAULT_MODEL, MAX_TOKENS_COMPATIBILITY
+from .llm_client import call_llm
 from .models import CompatibilityAssessment, JDAnalysis
 from .prompts import COMPATIBILITY_ASSESSMENT_SYSTEM, COMPATIBILITY_ASSESSMENT_USER
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def assess_compatibility(
-    resume_text: str, jd_analysis: JDAnalysis
+    resume_text: str, jd_analysis: JDAnalysis, model: str = DEFAULT_MODEL
 ) -> CompatibilityAssessment:
     """Score how well a resume matches a JD analysis.
 
@@ -23,8 +24,8 @@ def assess_compatibility(
     """
     logger.info("Assessing resume-JD compatibility")
 
-    response_text = call_api(
-        model=MODEL,
+    response_text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_COMPATIBILITY,
         system=COMPATIBILITY_ASSESSMENT_SYSTEM,
         user_content=COMPATIBILITY_ASSESSMENT_USER.format(

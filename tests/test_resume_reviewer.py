@@ -12,7 +12,7 @@ from src.models import ResumeReview
 class TestReviewResume:
     def test_basic_review(self, sample_resume, mock_review):
         with patch(
-            "src.resume_reviewer.call_api", return_value=json.dumps(mock_review)
+            "src.resume_reviewer.call_llm", return_value=json.dumps(mock_review)
         ):
             result = review_resume(sample_resume)
 
@@ -23,7 +23,7 @@ class TestReviewResume:
         assert len(result.improved_bullets) > 0
 
     def test_review_json_parse_error(self, sample_resume):
-        with patch("src.resume_reviewer.call_api", return_value="not json"):
+        with patch("src.resume_reviewer.call_llm", return_value="not json"):
             with pytest.raises(json.JSONDecodeError):
                 review_resume(sample_resume)
 
@@ -33,7 +33,7 @@ class TestImproveResume:
         improved_text = "Sarah Chen\nImproved resume text here..."
         review = ResumeReview.from_dict(mock_review)
 
-        with patch("src.resume_reviewer.call_api", return_value=improved_text):
+        with patch("src.resume_reviewer.call_llm", return_value=improved_text):
             result = improve_resume(sample_resume, review)
 
         assert isinstance(result, str)

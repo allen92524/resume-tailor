@@ -3,8 +3,9 @@
 import json
 import logging
 
-from .api import call_api, parse_json_response
-from .config import MODEL, MAX_TOKENS_RESUME_GENERATION
+from .api import parse_json_response
+from .config import DEFAULT_MODEL, MAX_TOKENS_RESUME_GENERATION
+from .llm_client import call_llm
 from .models import ResumeContent, JDAnalysis
 from .prompts import RESUME_GENERATION_SYSTEM, RESUME_GENERATION_USER
 
@@ -12,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def generate_tailored_resume(
-    resume_text: str, jd_analysis: JDAnalysis, user_additions: str = ""
+    resume_text: str,
+    jd_analysis: JDAnalysis,
+    user_additions: str = "",
+    model: str = DEFAULT_MODEL,
 ) -> ResumeContent:
     """Generate tailored resume content via Claude.
 
@@ -22,8 +26,8 @@ def generate_tailored_resume(
     """
     logger.info("Generating tailored resume content")
 
-    response_text = call_api(
-        model=MODEL,
+    response_text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_RESUME_GENERATION,
         system=RESUME_GENERATION_SYSTEM,
         user_content=RESUME_GENERATION_USER.format(

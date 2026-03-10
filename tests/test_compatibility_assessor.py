@@ -17,7 +17,7 @@ class TestAssessCompatibility:
         raw = {k: v for k, v in mock_compatibility.items() if k != "proceed"}
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.compatibility_assessor.call_api", return_value=json.dumps(raw)):
+        with patch("src.compatibility_assessor.call_llm", return_value=json.dumps(raw)):
             result = assess_compatibility(sample_resume, jd)
 
         assert isinstance(result, CompatibilityAssessment)
@@ -35,7 +35,7 @@ class TestAssessCompatibility:
         }
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.compatibility_assessor.call_api", return_value=json.dumps(raw)):
+        with patch("src.compatibility_assessor.call_llm", return_value=json.dumps(raw)):
             result = assess_compatibility(sample_resume, jd)
 
         assert result.match_score == 20
@@ -51,7 +51,7 @@ class TestAssessCompatibility:
         }
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.compatibility_assessor.call_api", return_value=json.dumps(raw)):
+        with patch("src.compatibility_assessor.call_llm", return_value=json.dumps(raw)):
             result = assess_compatibility(sample_resume, jd)
 
         assert result.proceed is True  # 30 >= 30
@@ -59,7 +59,7 @@ class TestAssessCompatibility:
     def test_json_parse_error(self, sample_resume, mock_jd_analysis):
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.compatibility_assessor.call_api", return_value="not json"):
+        with patch("src.compatibility_assessor.call_llm", return_value="not json"):
             with pytest.raises(json.JSONDecodeError):
                 assess_compatibility(sample_resume, jd)
 

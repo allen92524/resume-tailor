@@ -16,7 +16,7 @@ class TestGenerateTailoredResume:
         response_json = json.dumps(mock_resume_generation)
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.resume_generator.call_api", return_value=response_json):
+        with patch("src.resume_generator.call_llm", return_value=response_json):
             result = generate_tailored_resume(sample_resume, jd)
 
         assert isinstance(result, ResumeContent)
@@ -33,7 +33,7 @@ class TestGenerateTailoredResume:
         additions = "Additional skills: Go programming, gRPC experience"
 
         with patch(
-            "src.resume_generator.call_api", return_value=response_json
+            "src.resume_generator.call_llm", return_value=response_json
         ) as mock_call:
             generate_tailored_resume(sample_resume, jd, additions)
 
@@ -47,7 +47,7 @@ class TestGenerateTailoredResume:
         response_json = json.dumps(mock_resume_generation)
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.resume_generator.call_api", return_value=response_json):
+        with patch("src.resume_generator.call_llm", return_value=response_json):
             result = generate_tailored_resume(sample_resume, jd)
 
         # Second experience entry should have placeholder_bullets = [1]
@@ -65,7 +65,7 @@ class TestGenerateTailoredResume:
         wrapped = f"```json\n{json.dumps(mock_resume_generation)}\n```"
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.resume_generator.call_api", return_value=wrapped):
+        with patch("src.resume_generator.call_llm", return_value=wrapped):
             result = generate_tailored_resume(sample_resume, jd)
 
         assert result.name == "Sarah Chen"
@@ -73,7 +73,7 @@ class TestGenerateTailoredResume:
     def test_json_parse_error(self, sample_resume, mock_jd_analysis):
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.resume_generator.call_api", return_value="Not valid JSON"):
+        with patch("src.resume_generator.call_llm", return_value="Not valid JSON"):
             with pytest.raises(json.JSONDecodeError):
                 generate_tailored_resume(sample_resume, jd)
 
@@ -83,7 +83,7 @@ class TestGenerateTailoredResume:
         response_json = json.dumps(mock_resume_generation)
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
-        with patch("src.resume_generator.call_api", return_value=response_json):
+        with patch("src.resume_generator.call_llm", return_value=response_json):
             result = generate_tailored_resume(sample_resume, jd)
 
         # Verify all expected attributes

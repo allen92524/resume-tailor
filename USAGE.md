@@ -1,3 +1,5 @@
+[English](USAGE.md) | [中文](USAGE_CN.md)
+
 # Resume Tailor - Quick Reference Guide
 
 ## Getting Started
@@ -40,6 +42,11 @@ python src/main.py generate --resume-session
 # Test without using API credits
 python src/main.py generate --dry-run
 
+# Use a local Ollama model instead of Claude
+python src/main.py generate --model ollama:qwen3.5
+python src/main.py generate --model ollama:devstral
+python src/main.py generate --model ollama:gemma3
+
 # Combine flags
 python src/main.py generate --resume-session --skip-questions --format pdf
 ```
@@ -48,6 +55,9 @@ python src/main.py generate --resume-session --skip-questions --format pdf
 
 ```bash
 python src/main.py review
+
+# Review using a local Ollama model
+python src/main.py review --model ollama:qwen3.5
 ```
 
 Analyzes your saved base resume for quality, suggests improvements, and optionally applies them.
@@ -154,6 +164,7 @@ Your profile stores: identity info, base resume, experience bank (saved answers 
 | `--skip-assessment` | `generate` | Skip compatibility assessment |
 | `--reference` | `generate` | Path to a reference resume |
 | `--resume-session` | `generate` | Restore last session's inputs |
+| `--model` | `generate`, `review` | LLM model: `claude` (default) or `ollama:<name>` |
 | `--dry-run` | `generate` | Use mock data, no API calls |
 
 ## Backup & Data Safety
@@ -273,10 +284,14 @@ Run `make help` to see all targets. Key ones:
 | `make run` | Run the generate command |
 | `make run-profile PROFILE=name` | Run with a named profile |
 | `make dry-run` | Run with mock data (no API calls) |
+| `make run-local MODEL=ollama:qwen3.5` | Run with a local Ollama model |
 | `make api` | Start FastAPI server |
 | `make metrics` | Fetch Prometheus metrics from running API |
 | `make docker-build` | Build Docker image |
 | `make docker-run` | Run Docker container |
+| `make docker-ollama` | Run CLI + Ollama together (fully containerized) |
+| `make docker-ollama-api` | Start API server + Ollama together |
+| `make docker-ollama-pull MODEL=qwen3.5` | Pull a model into the Ollama container |
 | `make helm-install` | Install/upgrade Helm chart |
 | `make helm-uninstall` | Uninstall Helm chart |
 | `make helm-template` | Render Helm templates locally |

@@ -35,8 +35,14 @@ echo "Bumping $BUMP_TYPE: $CURRENT_VERSION -> $NEW_VERSION"
 # Update VERSION file
 echo "$NEW_VERSION" > "$VERSION_FILE"
 
-# Update Chart.yaml version
-sed -i "s/^version: .*/version: $NEW_VERSION/" "$CHART_FILE"
+# Update Chart.yaml version (portable: works on both GNU sed and macOS BSD sed)
+if sed --version >/dev/null 2>&1; then
+    # GNU sed
+    sed -i "s/^version: .*/version: $NEW_VERSION/" "$CHART_FILE"
+else
+    # BSD sed (macOS)
+    sed -i '' "s/^version: .*/version: $NEW_VERSION/" "$CHART_FILE"
+fi
 
 # Commit and tag
 cd "$PROJECT_ROOT"

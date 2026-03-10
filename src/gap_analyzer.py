@@ -3,15 +3,18 @@
 import json
 import logging
 
-from .api import call_api, parse_json_response
-from .config import MODEL, MAX_TOKENS_GAP_ANALYSIS
+from .api import parse_json_response
+from .config import DEFAULT_MODEL, MAX_TOKENS_GAP_ANALYSIS
+from .llm_client import call_llm
 from .models import GapAnalysis, JDAnalysis
 from .prompts import GAP_ANALYSIS_SYSTEM, GAP_ANALYSIS_USER
 
 logger = logging.getLogger(__name__)
 
 
-def analyze_gaps(resume_text: str, jd_analysis: JDAnalysis) -> GapAnalysis:
+def analyze_gaps(
+    resume_text: str, jd_analysis: JDAnalysis, model: str = DEFAULT_MODEL
+) -> GapAnalysis:
     """Compare resume against JD analysis to find gaps and strengths.
 
     Returns a GapAnalysis with 'gaps' (list of GapEntry) and
@@ -19,8 +22,8 @@ def analyze_gaps(resume_text: str, jd_analysis: JDAnalysis) -> GapAnalysis:
     """
     logger.info("Running gap analysis")
 
-    response_text = call_api(
-        model=MODEL,
+    response_text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_GAP_ANALYSIS,
         system=GAP_ANALYSIS_SYSTEM,
         user_content=GAP_ANALYSIS_USER.format(

@@ -1,11 +1,11 @@
 # Resume Tailor - AI-Powered Resume Generator
 
 ## Project Overview
-A CLI tool that takes a user's existing resume and a target job description (JD), asks clarifying questions, and generates a tailored resume optimized for the specific role. Uses the Anthropic Claude API for intelligent content generation and outputs to DOCX format.
+A CLI tool that takes a user's existing resume and a target job description (JD), asks clarifying questions, and generates a tailored resume optimized for the specific role. Uses the Anthropic Claude API or local Ollama models for intelligent content generation and outputs to DOCX format.
 
 ## Tech Stack
 - **Language:** Python 3.12+
-- **AI:** Anthropic Claude API (`anthropic` SDK)
+- **AI:** Anthropic Claude API (`anthropic` SDK), local Ollama models (`httpx`)
 - **Document Generation:** `python-docx` for DOCX output, LibreOffice for PDF conversion
 - **CLI Framework:** `click` for CLI interface
 - **Resume Parsing:** `python-docx` for DOCX input, `PyPDF2` for PDF input
@@ -20,7 +20,10 @@ resume-tailor/
 ├── Makefile               # Dev commands: make test, make lint, make run, deploy, release
 ├── VERSION                # Current semantic version (e.g. 1.3.0)
 ├── Dockerfile             # Container image definition
+├── docker-compose.yml     # Docker Compose (connects to host Ollama)
+├── docker-compose.full.yml # Docker Compose with bundled Ollama container
 ├── .dockerignore          # Docker build ignore rules
+├── .gitattributes         # Line ending and binary file rules
 ├── requirements.txt       # Python dependencies (runtime)
 ├── requirements-dev.txt   # Dev dependencies (ruff, black, pytest)
 ├── .github/
@@ -30,7 +33,8 @@ resume-tailor/
 │   ├── __init__.py
 │   ├── main.py            # CLI entry point (click commands)
 │   ├── web.py             # FastAPI REST API entry point
-│   ├── api.py             # Shared API call helpers with retry logic
+│   ├── api.py             # Claude API call helpers with retry logic
+│   ├── llm_client.py      # Unified LLM client (Claude + Ollama)
 │   ├── telemetry.py       # OpenTelemetry tracing & Prometheus metrics
 │   ├── config.py          # Centralized configuration constants
 │   ├── models.py          # Data models (dataclasses for all structured data)
@@ -90,9 +94,12 @@ resume-tailor/
 ### Generate Flow
 See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 
-### Claude API Usage
-- Use `anthropic` Python SDK with retry logic (`tenacity`) in `src/api.py`
-- Model: `claude-sonnet-4-5-20250929` (configured in `src/config.py`)
+### LLM Backend
+- Supports Claude API (default) and local Ollama models via `src/llm_client.py`
+- `--model claude` (default) uses Anthropic API; `--model ollama:<name>` uses local Ollama
+- Claude API uses `anthropic` Python SDK with retry logic (`tenacity`) in `src/api.py`
+- Claude model: `claude-sonnet-4-5-20250929` (configured in `src/config.py`)
+- Ollama communicates via REST API at `http://localhost:11434/api/chat` using `httpx`
 - All prompts stored in `src/prompts/` as Markdown template files, loaded by `src/prompts.py`
 - Shared rules in `src/prompts/shared_rules.md`, injected via `{%SECTION%}` markers
 - Use structured output (JSON) for parsed data

@@ -65,6 +65,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - `--output PATH` — output directory or file path
 - `--skip-questions` — skip gap analysis questions
 - `--skip-assessment` — skip compatibility score
+- `--model MODEL` — LLM model: `claude` (default) or `ollama:<name>`
 - `--dry-run` — use mock API responses
 - `--resume-session` — reuse last session input
 - `--reference PATH` — reference resume file path

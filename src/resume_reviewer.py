@@ -6,8 +6,9 @@ import re
 
 import click
 
-from .api import call_api, parse_json_response
-from .config import MODEL, MAX_TOKENS_REVIEW, MAX_TOKENS_IMPROVE
+from .api import parse_json_response
+from .config import DEFAULT_MODEL, MAX_TOKENS_REVIEW, MAX_TOKENS_IMPROVE
+from .llm_client import call_llm
 from .models import ResumeReview
 from .prompts import (
     RESUME_REVIEW_SYSTEM,
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_RE = re.compile(r"\[([^\]]*(?:X|Y|N|number)[^\]]*)\]", re.IGNORECASE)
 
 
-def review_resume(resume_text: str) -> ResumeReview:
+def review_resume(resume_text: str, model: str = DEFAULT_MODEL) -> ResumeReview:
     """Send resume to Claude for quality review.
 
     Returns a ResumeReview with overall_score, strengths, weaknesses,
@@ -30,8 +31,8 @@ def review_resume(resume_text: str) -> ResumeReview:
     """
     logger.info("Reviewing resume (%d chars)", len(resume_text))
 
-    response_text = call_api(
-        model=MODEL,
+    response_text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_REVIEW,
         system=RESUME_REVIEW_SYSTEM,
         user_content=RESUME_REVIEW_USER.format(resume_text=resume_text),
@@ -47,6 +48,7 @@ def improve_resume(
     resume_text: str,
     review: ResumeReview,
     skipped_placeholders: list[str] | None = None,
+    model: str = DEFAULT_MODEL,
 ) -> str:
     """Send resume + review to Claude to get an improved version.
 
@@ -69,8 +71,8 @@ def improve_resume(
             "Write clean sentences with no metric at all for these:\n" + skip_list
         )
 
-    text = call_api(
-        model=MODEL,
+    text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_IMPROVE,
         system=RESUME_IMPROVE_SYSTEM,
         user_content=prompt,

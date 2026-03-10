@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-profile dry-run api metrics docker-build docker-run helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format run run-local run-profile dry-run api metrics docker-build docker-run docker-ollama docker-ollama-api docker-ollama-pull helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -32,6 +32,10 @@ format: ## Run black formatter
 run: ## Activate venv and run generate
 	$(PYTHON) src/main.py generate
 
+run-local: ## Run generate with local Ollama model (e.g. make run-local MODEL=ollama:qwen3.5)
+	@test -n "$(MODEL)" || (echo "Usage: make run-local MODEL=ollama:<model-name>" && exit 1)
+	$(PYTHON) src/main.py generate --model $(MODEL)
+
 run-profile: ## Run generate with PROFILE=name (e.g. make run-profile PROFILE=john)
 	@test -n "$(PROFILE)" || (echo "Usage: make run-profile PROFILE=name" && exit 1)
 	$(PYTHON) src/main.py --profile $(PROFILE) generate
@@ -54,6 +58,16 @@ docker-run: ## Run Docker container with interactive mode
 		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
 		-v $(PWD)/output:/output \
 		resume-tailor generate
+
+docker-ollama: ## Run CLI + Ollama together (no API key needed)
+	docker compose -f docker-compose.full.yml run --rm resume-tailor
+
+docker-ollama-api: ## Start API server + Ollama together
+	docker compose -f docker-compose.full.yml --profile api up
+
+docker-ollama-pull: ## Pull a model into the Ollama container (e.g. make docker-ollama-pull MODEL=qwen3.5)
+	@test -n "$(MODEL)" || (echo "Usage: make docker-ollama-pull MODEL=<model-name>" && exit 1)
+	docker compose -f docker-compose.full.yml exec ollama ollama pull $(MODEL)
 
 helm-install: ## Install/upgrade Helm chart to Kubernetes
 	@helm upgrade --install resume-tailor helm/resume-tailor --set apiKey=$(ANTHROPIC_API_KEY)

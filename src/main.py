@@ -14,11 +14,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.config import (
     MODEL,
+    DEFAULT_MODEL,
     MAX_TOKENS_VALIDATE,
     DEFAULT_OUTPUT_FORMAT,
     DEFAULT_PROFILE,
     get_profile_path,
 )
+from src.llm_client import is_ollama_model
 from src.models import (
     ResumeContent,
     JDAnalysis,
@@ -548,11 +550,18 @@ def profile_restore(ctx):
 
 
 @cli.command()
+@click.option(
+    "--model",
+    default=DEFAULT_MODEL,
+    show_default=True,
+    help="LLM model to use. 'claude' for Anthropic API, or 'ollama:<name>' for local Ollama.",
+)
 @click.pass_context
-def review(ctx):
+def review(ctx, model):
     """Review your base resume for quality and get improvement suggestions."""
     pname = ctx.obj["profile_name"]
-    validate_api_key()
+    if not is_ollama_model(model):
+        validate_api_key()
 
     prof = load_profile(pname)
     if not prof:
@@ -565,7 +574,7 @@ def review(ctx):
 
     click.echo("Reviewing your resume...")
     try:
-        review_result = review_resume(prof.base_resume)
+        review_result = review_resume(prof.base_resume, model=model)
     except Exception as e:
         logger.error("Resume review failed: %s", e)
         click.echo(f"Error reviewing resume: {e}")
@@ -588,6 +597,7 @@ def review(ctx):
                 prof.base_resume,
                 review_result,
                 skipped_placeholders=all_skipped or None,
+                model=model,
             )
         except Exception as e:
             logger.error("Resume improvement failed: %s", e)
@@ -652,6 +662,12 @@ def review(ctx):
     default=False,
     help="Use mock API responses instead of calling Claude. For testing without spending credits.",
 )
+@click.option(
+    "--model",
+    default=DEFAULT_MODEL,
+    show_default=True,
+    help="LLM model to use. 'claude' for Anthropic API, or 'ollama:<name>' for local Ollama.",
+)
 @click.pass_context
 def generate(
     ctx,
@@ -662,6 +678,7 @@ def generate(
     reference_path: str | None,
     resume_session: bool,
     dry_run: bool,
+    model: str,
 ):
     """Generate a tailored resume from your resume and a job description."""
     pname = ctx.obj["profile_name"]
@@ -670,6 +687,8 @@ def generate(
         click.echo(
             click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
         )
+    elif is_ollama_model(model):
+        click.echo(f"Using local Ollama model: {model.split(':', 1)[1]}")
     else:
         # Validate API key before collecting any input
         validate_api_key()
@@ -820,7 +839,7 @@ def generate(
             click.echo("\n--- Step 3: Resume Review ---")
             click.echo("Reviewing your resume...")
             try:
-                review_result = review_resume(resume_text)
+                review_result = review_resume(resume_text, model=model)
                 display_review(review_result)
 
                 # Let user fill in placeholder metrics before applying improvements
@@ -840,6 +859,7 @@ def generate(
                             resume_text,
                             review_result,
                             skipped_placeholders=all_skipped or None,
+                            model=model,
                         )
                     except Exception as e:
                         logger.error("Resume improvement failed: %s", e)
@@ -888,7 +908,7 @@ def generate(
     else:
         click.echo("Sending job description to Claude for analysis...")
         try:
-            jd_analysis = analyze_jd(jd_text, reference_text=reference_text)
+            jd_analysis = analyze_jd(jd_text, reference_text=reference_text, model=model)
         except Exception as e:
             logger.error("JD analysis failed: %s", e)
             click.echo(f"Error analyzing job description: {e}")
@@ -944,7 +964,7 @@ def generate(
             else:
                 click.echo("Comparing your resume against the job requirements...")
                 try:
-                    gap_result = analyze_gaps(resume_text, jd_analysis)
+                    gap_result = analyze_gaps(resume_text, jd_analysis, model=model)
                 except Exception as e:
                     logger.warning("Gap analysis failed: %s", e)
                     click.echo(
@@ -1067,7 +1087,7 @@ def generate(
         else:
             click.echo("Evaluating match between your resume and the job...")
             try:
-                assessment = assess_compatibility(resume_text, jd_analysis)
+                assessment = assess_compatibility(resume_text, jd_analysis, model=model)
             except Exception as e:
                 logger.warning("Compatibility assessment failed: %s", e)
                 click.echo(
@@ -1111,7 +1131,7 @@ def generate(
         click.echo("Generating tailored resume content...")
         try:
             resume_data = generate_tailored_resume(
-                resume_text, jd_analysis, user_additions
+                resume_text, jd_analysis, user_additions, model=model
             )
         except Exception as e:
             logger.error("Resume generation failed: %s", e)

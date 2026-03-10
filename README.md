@@ -1,5 +1,7 @@
 [![CI](https://github.com/allen92524/resume-tailor/actions/workflows/ci.yml/badge.svg)](https://github.com/allen92524/resume-tailor/actions/workflows/ci.yml)
 
+[English](README.md) | [中文](README_CN.md)
+
 # Resume Tailor
 
 **AI-powered CLI tool that generates tailored resumes for each job application.**
@@ -89,8 +91,54 @@ Done! Your tailored resume has been saved to:
 - **Multi-profile support** — manage resumes for different people on the same machine
 - **Session restore** — re-run with `--resume-session` to try different answers
 - **Dry-run mode** — test the full flow without spending API credits
+- **Local LLM support** — run with local Ollama models instead of Claude API
 
 ## Quick Start
+
+### Windows (recommended: Docker)
+
+Docker is the easiest way to run on Windows — it handles Python, LibreOffice, and dependencies automatically.
+
+```powershell
+# 1. Install Docker Desktop: https://docs.docker.com/desktop/install/windows/
+# 2. Clone
+git clone https://github.com/your-username/resume-tailor.git
+cd resume-tailor
+
+# 3. Run with Docker
+docker build -t resume-tailor .
+docker run -it -e ANTHROPIC_API_KEY="sk-ant-..." ^
+  -v %USERPROFILE%\.resume-tailor:/root/.resume-tailor ^
+  -v %cd%\output:/output ^
+  resume-tailor generate --format pdf --output /output/
+```
+
+Or use a local model with no API key — see [Docker + Ollama](#docker--ollama-fully-containerized) below.
+
+### macOS (recommended: Docker or native)
+
+```bash
+# Option A: Docker (easiest)
+brew install --cask docker
+docker build -t resume-tailor .
+docker compose run resume-tailor
+
+# Option B: Native install
+git clone https://github.com/your-username/resume-tailor.git
+cd resume-tailor
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# For PDF output
+brew install --cask libreoffice
+
+export ANTHROPIC_API_KEY="sk-ant-..."
+python src/main.py generate
+```
+
+### Linux
 
 ```bash
 # 1. Clone
@@ -98,13 +146,14 @@ git clone https://github.com/your-username/resume-tailor.git
 cd resume-tailor
 
 # 2. Install
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
 # 3. System dependencies (for PDF output)
 sudo apt install libreoffice-writer -y    # Ubuntu/Debian
-# brew install --cask libreoffice         # macOS
+# sudo dnf install libreoffice-writer     # Fedora
+# sudo pacman -S libreoffice-still        # Arch
 
 # 4. Set your API key
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -121,16 +170,68 @@ On first run, the tool walks you through creating a profile — paste your resum
 # Build
 docker build -t resume-tailor .
 
-# Run
+# Run with Claude API
 docker run -it \
   -e ANTHROPIC_API_KEY="your-key" \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v ~/Desktop:/output \
   resume-tailor generate --format pdf --output /output/
 
-# Or with docker-compose
+# Or with docker-compose (connects to host Ollama automatically)
 docker compose run resume-tailor
+
+# Use a local Ollama model from Docker (Ollama must be running on the host)
+docker compose run resume-tailor generate --model ollama:qwen3.5
 ```
+
+### Docker + Ollama (fully containerized)
+
+Run everything in Docker — no need to install Ollama or Python on your machine. Works on all platforms (Windows, macOS, Linux).
+
+```bash
+# Start Ollama container and pull a model
+docker compose -f docker-compose.full.yml up -d ollama
+make docker-ollama-pull MODEL=qwen3.5
+
+# Run the CLI with the local model
+make docker-ollama
+
+# Or start the API server + Ollama together
+make docker-ollama-api
+```
+
+## Local LLM with Ollama
+
+Run entirely locally using [Ollama](https://ollama.com/) — no API key needed.
+
+```bash
+# 1. Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh   # Linux
+# brew install ollama                            # macOS
+# Download from https://ollama.com/download      # Windows
+
+# 2. Start Ollama and pull a model
+ollama serve
+ollama pull qwen3.5
+
+# 3. Run with the local model
+python src/main.py generate --model ollama:qwen3.5
+
+# Or use the Makefile shortcut
+make run-local MODEL=ollama:qwen3.5
+```
+
+> **Windows/macOS:** prefer `docker-compose.full.yml` instead — it bundles Ollama in a container so you don't need to install it separately. See [Docker + Ollama](#docker--ollama-fully-containerized).
+
+Supported models (any Ollama model works):
+
+| Model | Flag |
+|-------|------|
+| Qwen 3.5 | `--model ollama:qwen3.5` |
+| Devstral | `--model ollama:devstral` |
+| Gemma 3 | `--model ollama:gemma3` |
+
+The `--model` flag works with both `generate` and `review` commands, and with all REST API endpoints (pass `"model": "ollama:qwen3.5"` in the request body).
 
 ## Kubernetes Deployment
 
@@ -318,7 +419,7 @@ Your Resume + Job Description
 | `profile restore` | Restore from a backup |
 | `profile reset` | Delete profile and start over |
 
-Key flags: `--format pdf`, `--skip-questions`, `--skip-assessment`, `--resume-session`, `--dry-run`, `--profile <name>`, `--verbose`
+Key flags: `--format pdf`, `--skip-questions`, `--skip-assessment`, `--resume-session`, `--dry-run`, `--model ollama:qwen3.5`, `--profile <name>`, `--verbose`
 
 See [USAGE.md](USAGE.md) for the complete reference with all flags, workflows, and troubleshooting.
 
@@ -386,7 +487,8 @@ resume-tailor/
 ├── src/
 │   ├── main.py                # CLI entry point (click commands)
 │   ├── web.py                 # FastAPI REST API entry point
-│   ├── api.py                 # API call helpers with retry logic
+│   ├── api.py                 # Claude API call helpers with retry logic
+│   ├── llm_client.py          # Unified LLM client (Claude + Ollama)
 │   ├── telemetry.py           # OpenTelemetry tracing & Prometheus metrics
 │   ├── config.py              # Centralized configuration
 │   ├── models.py              # Data models (dataclasses)
@@ -440,10 +542,14 @@ make run
 | `make run` | Run the generate command |
 | `make run-profile PROFILE=name` | Run generate with a named profile |
 | `make dry-run` | Run with mock data (no API calls) |
+| `make run-local MODEL=ollama:qwen3.5` | Run with a local Ollama model |
 | `make api` | Start FastAPI server on port 8000 |
 | `make metrics` | Fetch raw Prometheus metrics from running API |
 | `make docker-build` | Build Docker image |
 | `make docker-run` | Run Docker container interactively |
+| `make docker-ollama` | Run CLI + Ollama together (no API key needed) |
+| `make docker-ollama-api` | Start API server + Ollama together |
+| `make docker-ollama-pull MODEL=qwen3.5` | Pull a model into the Ollama container |
 | `make helm-install` | Install/upgrade Helm chart to Kubernetes |
 | `make helm-uninstall` | Uninstall Helm chart |
 | `make helm-template` | Render Helm templates locally (dry-run) |

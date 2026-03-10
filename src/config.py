@@ -2,8 +2,13 @@
 
 import os
 
-# Claude API settings
-MODEL = "claude-sonnet-4-5-20250929"
+# LLM settings
+DEFAULT_MODEL = "claude"
+CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+
+# Alias for backward compatibility within call_api
+MODEL = CLAUDE_MODEL
 MAX_TOKENS_JD_ANALYSIS = 2048
 MAX_TOKENS_GAP_ANALYSIS = 2048
 MAX_TOKENS_COMPATIBILITY = 2048

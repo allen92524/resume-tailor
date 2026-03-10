@@ -14,6 +14,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from src.compatibility_assessor import assess_compatibility
+from src.config import DEFAULT_MODEL
 from src.docx_builder import build_resume
 from src.jd_analyzer import analyze_jd
 from src.models import JDAnalysis, ResumeContent, ResumeReview
@@ -89,6 +90,7 @@ async def metrics():
 
 class AnalyzeJDRequest(BaseModel):
     jd_text: str = Field(..., min_length=1, description="Job description text")
+    model: str = Field(DEFAULT_MODEL, description="LLM model: 'claude' or 'ollama:<name>'")
 
 
 class StyleInsightsResponse(BaseModel):
@@ -115,6 +117,7 @@ class JDAnalysisResponse(BaseModel):
 class CompatibilityRequest(BaseModel):
     resume_text: str = Field(..., min_length=1, description="Resume text")
     jd_text: str = Field(..., min_length=1, description="Job description text")
+    model: str = Field(DEFAULT_MODEL, description="LLM model: 'claude' or 'ollama:<name>'")
 
 
 class CompatibilityResponse(BaseModel):
@@ -130,6 +133,7 @@ class GenerateRequest(BaseModel):
     resume_text: str = Field(..., min_length=1, description="Resume text")
     jd_text: str = Field(..., min_length=1, description="Job description text")
     additional_context: str = Field("", description="Extra context from gap answers")
+    model: str = Field(DEFAULT_MODEL, description="LLM model: 'claude' or 'ollama:<name>'")
 
 
 class ExperienceEntryResponse(BaseModel):
@@ -162,6 +166,7 @@ class ResumeContentResponse(BaseModel):
 
 class ReviewRequest(BaseModel):
     resume_text: str = Field(..., min_length=1, description="Resume text")
+    model: str = Field(DEFAULT_MODEL, description="LLM model: 'claude' or 'ollama:<name>'")
 
 
 class ReviewWeaknessResponse(BaseModel):
@@ -230,7 +235,7 @@ async def analyze_jd_endpoint(request: AnalyzeJDRequest):
     """Analyze a job description and return structured analysis."""
     with tracer.start_as_current_span("analyze_jd_endpoint"):
         try:
-            analysis = analyze_jd(request.jd_text)
+            analysis = analyze_jd(request.jd_text, model=request.model)
             return _jd_analysis_to_response(analysis)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -245,8 +250,8 @@ async def assess_compatibility_endpoint(request: CompatibilityRequest):
     """Assess compatibility between a resume and job description."""
     with tracer.start_as_current_span("assess_compatibility_endpoint"):
         try:
-            jd_analysis = analyze_jd(request.jd_text)
-            assessment = assess_compatibility(request.resume_text, jd_analysis)
+            jd_analysis = analyze_jd(request.jd_text, model=request.model)
+            assessment = assess_compatibility(request.resume_text, jd_analysis, model=request.model)
             return CompatibilityResponse(**assessment.to_dict())
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -261,9 +266,10 @@ async def generate_resume_endpoint(request: GenerateRequest):
     """Generate a tailored resume as JSON."""
     with tracer.start_as_current_span("generate_resume_endpoint"):
         try:
-            jd_analysis = analyze_jd(request.jd_text)
+            jd_analysis = analyze_jd(request.jd_text, model=request.model)
             resume = generate_tailored_resume(
-                request.resume_text, jd_analysis, request.additional_context
+                request.resume_text, jd_analysis, request.additional_context,
+                model=request.model,
             )
             RESUME_GENERATION_COUNT.inc()
             return _resume_content_to_response(resume)
@@ -282,9 +288,10 @@ async def generate_pdf_endpoint(request: GenerateRequest):
     """Generate a tailored resume and return as PDF download."""
     with tracer.start_as_current_span("generate_pdf_endpoint"):
         try:
-            jd_analysis = analyze_jd(request.jd_text)
+            jd_analysis = analyze_jd(request.jd_text, model=request.model)
             resume = generate_tailored_resume(
-                request.resume_text, jd_analysis, request.additional_context
+                request.resume_text, jd_analysis, request.additional_context,
+                model=request.model,
             )
             RESUME_GENERATION_COUNT.inc()
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -318,7 +325,7 @@ async def review_resume_endpoint(request: ReviewRequest):
     """Review a resume and return score, strengths, weaknesses, and suggestions."""
     with tracer.start_as_current_span("review_resume_endpoint"):
         try:
-            review = review_resume(request.resume_text)
+            review = review_resume(request.resume_text, model=request.model)
             return _review_to_response(review)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

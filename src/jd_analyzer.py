@@ -2,8 +2,9 @@
 
 import logging
 
-from .api import call_api, parse_json_response
-from .config import MODEL, MAX_TOKENS_JD_ANALYSIS
+from .api import parse_json_response
+from .config import DEFAULT_MODEL, MAX_TOKENS_JD_ANALYSIS
+from .llm_client import call_llm
 from .models import JDAnalysis
 from .prompts import (
     JD_ANALYSIS_SYSTEM,
@@ -14,7 +15,9 @@ from .prompts import (
 logger = logging.getLogger(__name__)
 
 
-def analyze_jd(jd_text: str, reference_text: str | None = None) -> JDAnalysis:
+def analyze_jd(
+    jd_text: str, reference_text: str | None = None, model: str = DEFAULT_MODEL
+) -> JDAnalysis:
     """Send a job description to Claude and return structured analysis.
 
     Returns a JDAnalysis with keys: job_title, company, required_skills,
@@ -36,8 +39,8 @@ def analyze_jd(jd_text: str, reference_text: str | None = None) -> JDAnalysis:
     else:
         user_content = JD_ANALYSIS_USER.format(jd_text=jd_text)
 
-    response_text = call_api(
-        model=MODEL,
+    response_text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_JD_ANALYSIS,
         system=JD_ANALYSIS_SYSTEM,
         user_content=user_content,
