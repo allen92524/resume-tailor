@@ -2,7 +2,7 @@ apiVersion: v2
 name: resume-tailor
 description: AI-powered resume tailoring API — analyzes job descriptions and generates ATS-friendly resumes
 type: application
-version: 1.5.2
+version: 1.5.3
 appVersion: "1.1.0"
 keywords:
   - resume
