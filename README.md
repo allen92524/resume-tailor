@@ -1,4 +1,4 @@
-[![CI](https://github.com/allen92524/-resume-tailor/actions/workflows/ci.yml/badge.svg)](https://github.com/allen92524/-resume-tailor/actions/workflows/ci.yml)
+[![CI](https://github.com/allen92524/resume-tailor/actions/workflows/ci.yml/badge.svg)](https://github.com/allen92524/resume-tailor/actions/workflows/ci.yml)
 
 # Resume Tailor
 
