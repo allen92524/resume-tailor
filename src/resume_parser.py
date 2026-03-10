@@ -73,8 +73,8 @@ def _convert_windows_path(path: str) -> str:
 def read_resume_from_file(file_path: str) -> str:
     """Read a resume from a file path. Supports .txt, .md, .docx, and .pdf."""
     file_path = _convert_windows_path(file_path.strip())
-    file_path = os.path.expanduser(file_path)
     file_path = _convert_docker_path(file_path)
+    file_path = os.path.expanduser(file_path)
 
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"Resume file not found: {file_path}")
