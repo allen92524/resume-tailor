@@ -4,11 +4,153 @@
 
 # Resume Tailor
 
-**AI-powered CLI tool that generates tailored resumes for each job application.**
+**Turn any job posting into a tailored resume in 5 minutes.**
 
-Paste your resume and a job description. Resume Tailor analyzes the role, identifies gaps in your experience, scores your fit, and generates an ATS-friendly resume — all from the terminal.
+You have one resume. Every job is different. Resume Tailor reads the job description, figures out what matters, asks you a few questions, and generates a polished, ATS-friendly resume — as DOCX, PDF, or Markdown.
 
-## Demo
+Works with the Claude API (best quality) or free local models via Ollama (no account needed).
+
+## How It Works
+
+```
+Your Resume + Job Description
+         │
+         ▼
+   ┌─────────────┐
+   │  JD Analysis │ ← Extracts skills, keywords, what the company cares about
+   └──────┬──────┘
+          ▼
+   ┌──────────────┐
+   │ Gap Analysis  │ ← Finds what's missing, asks you targeted questions
+   └──────┬───────┘
+          ▼
+   ┌───────────────────┐
+   │ Compatibility Score│ ← Shows 0-100% match before you commit
+   └───────┬───────────┘
+           ▼
+   ┌──────────────────┐
+   │ Resume Generation │ ← Writes tailored content using your real experience
+   └───────┬──────────┘
+           ▼
+   DOCX / PDF / Markdown
+```
+
+## Quick Start
+
+Pick **one** of the three options below. Option B is easiest if you don't want to pay for an API key.
+
+---
+
+### Option A: Docker + Claude API (best quality)
+
+Claude gives the best resume output. You need an API key ($0.01-0.05 per resume).
+
+**1. Get an API key** (takes 1 minute)
+
+Go to https://console.anthropic.com/settings/keys → create a key → copy it. It starts with `sk-ant-`.
+
+**2. Clone and build**
+
+```bash
+git clone https://github.com/allen92524/resume-tailor.git
+cd resume-tailor
+docker build -t resume-tailor .
+```
+
+**3. Generate your first resume**
+
+```bash
+# Linux / macOS
+docker run -it \
+  -e ANTHROPIC_API_KEY="sk-ant-your-key-here" \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --format pdf --output /output/
+
+# Windows (PowerShell)
+docker run -it `
+  -e ANTHROPIC_API_KEY="sk-ant-your-key-here" `
+  -v $env:USERPROFILE\.resume-tailor:/root/.resume-tailor `
+  -v ${PWD}\output:/output `
+  resume-tailor generate --format pdf --output /output/
+```
+
+The tool walks you through it: paste your resume, paste the job description, answer a few questions, get your tailored resume.
+
+---
+
+### Option B: Docker + Ollama (free, runs locally)
+
+No API key, no account, no cost. Everything runs on your machine. Requires ~4 GB of RAM.
+
+**1. Clone and start**
+
+```bash
+git clone https://github.com/allen92524/resume-tailor.git
+cd resume-tailor
+
+# Start the Ollama container (downloads ~2 GB on first run)
+docker compose -f docker-compose.full.yml up -d ollama
+```
+
+**2. Download a model** (one-time, ~2 GB)
+
+```bash
+docker compose -f docker-compose.full.yml exec ollama ollama pull qwen3.5
+```
+
+**3. Generate your first resume**
+
+```bash
+docker compose -f docker-compose.full.yml run --rm resume-tailor
+```
+
+---
+
+### Option C: Install locally (no Docker)
+
+Best if you want to hack on the code or avoid Docker.
+
+**1. Clone and install**
+
+```bash
+git clone https://github.com/allen92524/resume-tailor.git
+cd resume-tailor
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**2. Install LibreOffice** (only needed for PDF output)
+
+```bash
+# Ubuntu / Debian
+sudo apt install libreoffice-writer -y
+
+# macOS
+brew install --cask libreoffice
+
+# Windows — download from https://www.libreoffice.org/download/
+# Or just use --format docx to skip this step
+```
+
+**3. Set up your AI backend**
+
+```bash
+# Option 1: Claude API (best quality)
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+python src/main.py generate
+
+# Option 2: Ollama (free, local)
+# Install Ollama: https://ollama.com/download
+ollama pull qwen3.5
+python src/main.py generate --model ollama:qwen3.5
+```
+
+---
+
+## What Your First Run Looks Like
 
 ```
 $ python src/main.py generate
@@ -19,12 +161,9 @@ $ python src/main.py generate
 
 Using profile resume for Jane Doe
 
---- Step 2: Reference Resume (Optional) ---
-Do you have a reference resume? (file path or Enter to skip):
-
 --- Step 4: Target Job Description ---
 Provide the job description: paste content below, or enter a file path.
-/mnt/c/Users/user/Desktop/sr_platform_eng_jd.txt
+/path/to/job_posting.txt
 
   Words:    287
   Role:     Senior Platform Engineer
@@ -32,13 +171,10 @@ Provide the job description: paste content below, or enter a file path.
 Is this correct? [Y/n]:
 
 --- Step 5: JD Analysis ---
-Sending job description to Claude for analysis...
 Analysis complete. Role: Senior Platform Engineer
 Key skills identified: Python, Go, Kubernetes, distributed systems, CI/CD
 
 --- Step 6: Gap Analysis & Follow-Up Questions ---
-Comparing your resume against the job requirements...
-
 Your resume already matches well on:
   - Python backend development
   - Cloud infrastructure (AWS)
@@ -49,517 +185,111 @@ I have a few questions based on gaps between your resume and the JD.
   Do you have experience with Go or similar systems languages?
   → Built internal CLI tools in Go for deployment automation
 
-  Have you worked with data streaming technologies (Kafka, Kinesis)?
-  → Used Kafka for event-driven microservices at Acme Corp
-
 --- Step 7: Compatibility Assessment ---
-==================================================
-  Compatibility Assessment
-==================================================
-
   Match Score: [████████████████░░░░] 78%
 
   Strong Matches:
     + Python backend and API development
     + Kubernetes and containerization
-    + Mentoring and technical leadership
-
-  Addressable Gaps:
-    ~ Go experience (has related systems programming)
 
 Match score: 78%. Proceed with generation? [Y/n]:
 
 --- Step 8: Generating Tailored Resume ---
-Generating tailored resume content...
 Resume content generated.
 
---- Step 9: Building PDF ---
-
 Done! Your tailored resume has been saved to:
-  /home/user/projects/resume-tailor/output/Jane_Doe_Dataflow_Sr_Platform_Eng.pdf
+  output/Jane_Doe_Dataflow_Sr_Platform_Eng.pdf
 ```
 
 ## Features
 
-- **Profile system** — save your resume once, reuse it for every application
-- **Smart gap analysis** — identifies what's missing and asks targeted follow-up questions
-- **Experience bank** — remembers your answers so you don't repeat yourself
-- **Compatibility scoring** — 0-100% match score with detailed breakdown before you commit
+- **Save your resume once, reuse everywhere** — profile system remembers your resume and contact info
+- **Smart gap analysis** — AI identifies what's missing and asks targeted questions
+- **Experience bank** — remembers your answers so you never re-type the same thing
+- **Match score** — see a 0-100% compatibility score before you commit to generating
 - **Resume review** — standalone command to improve your base resume with AI feedback
-- **Multi-format output** — DOCX, PDF, and Markdown
-- **ATS-friendly formatting** — clean layout, no tables, proper heading structure
-- **Multi-profile support** — manage resumes for different people on the same machine
+- **Multi-format** — output as DOCX, PDF, or Markdown
+- **ATS-friendly** — clean formatting that passes automated screening systems
+- **Multi-profile** — manage resumes for different people on the same machine
 - **Session restore** — re-run with `--resume-session` to try different answers
-- **Dry-run mode** — test the full flow without spending API credits
-- **Local LLM support** — run with local Ollama models instead of Claude API
-
-## Quick Start
-
-### Windows (recommended: Docker)
-
-Docker is the easiest way to run on Windows — it handles Python, LibreOffice, and dependencies automatically.
-
-```powershell
-# 1. Install Docker Desktop: https://docs.docker.com/desktop/install/windows/
-# 2. Clone
-git clone https://github.com/your-username/resume-tailor.git
-cd resume-tailor
-
-# 3. Run with Docker
-docker build -t resume-tailor .
-docker run -it -e ANTHROPIC_API_KEY="sk-ant-..." ^
-  -v %USERPROFILE%\.resume-tailor:/root/.resume-tailor ^
-  -v %cd%\output:/output ^
-  resume-tailor generate --format pdf --output /output/
-```
-
-Or use a local model with no API key — see [Docker + Ollama](#docker--ollama-fully-containerized) below.
-
-### macOS (recommended: Docker or native)
-
-```bash
-# Option A: Docker (easiest)
-brew install --cask docker
-docker build -t resume-tailor .
-docker compose run resume-tailor
-
-# Option B: Native install
-git clone https://github.com/your-username/resume-tailor.git
-cd resume-tailor
-
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# For PDF output
-brew install --cask libreoffice
-
-export ANTHROPIC_API_KEY="sk-ant-..."
-python src/main.py generate
-```
-
-### Linux
-
-```bash
-# 1. Clone
-git clone https://github.com/your-username/resume-tailor.git
-cd resume-tailor
-
-# 2. Install
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# 3. System dependencies (for PDF output)
-sudo apt install libreoffice-writer -y    # Ubuntu/Debian
-# sudo dnf install libreoffice-writer     # Fedora
-# sudo pacman -S libreoffice-still        # Arch
-
-# 4. Set your API key
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# 5. Run
-python src/main.py generate
-```
-
-On first run, the tool walks you through creating a profile — paste your resume, review it, and you're set.
-
-## Docker
-
-```bash
-# Build
-docker build -t resume-tailor .
-
-# Run with Claude API
-docker run -it \
-  -e ANTHROPIC_API_KEY="your-key" \
-  -v ~/.resume-tailor:/root/.resume-tailor \
-  -v ~/Desktop:/output \
-  resume-tailor generate --format pdf --output /output/
-
-# Or with docker-compose (connects to host Ollama automatically)
-docker compose run resume-tailor
-
-# Use a local Ollama model from Docker (Ollama must be running on the host)
-docker compose run resume-tailor generate --model ollama:qwen3.5
-```
-
-### Docker + Ollama (fully containerized)
-
-Run everything in Docker — no need to install Ollama or Python on your machine. Works on all platforms (Windows, macOS, Linux).
-
-```bash
-# Start Ollama container and pull a model
-docker compose -f docker-compose.full.yml up -d ollama
-make docker-ollama-pull MODEL=qwen3.5
-
-# Run the CLI with the local model
-make docker-ollama
-
-# Or start the API server + Ollama together
-make docker-ollama-api
-```
-
-## Local LLM with Ollama
-
-Run entirely locally using [Ollama](https://ollama.com/) — no API key needed.
-
-```bash
-# 1. Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh   # Linux
-# brew install ollama                            # macOS
-# Download from https://ollama.com/download      # Windows
-
-# 2. Start Ollama and pull a model
-ollama serve
-ollama pull qwen3.5
-
-# 3. Run with the local model
-python src/main.py generate --model ollama:qwen3.5
-
-# Or use the Makefile shortcut
-make run-local MODEL=ollama:qwen3.5
-```
-
-> **Windows/macOS:** prefer `docker-compose.full.yml` instead — it bundles Ollama in a container so you don't need to install it separately. See [Docker + Ollama](#docker--ollama-fully-containerized).
-
-Supported models (any Ollama model works):
-
-| Model | Flag |
-|-------|------|
-| Qwen 3.5 | `--model ollama:qwen3.5` |
-| Devstral | `--model ollama:devstral` |
-| Gemma 3 | `--model ollama:gemma3` |
-
-The `--model` flag works with both `generate` and `review` commands, and with all REST API endpoints (pass `"model": "ollama:qwen3.5"` in the request body).
-
-## Kubernetes Deployment
-
-Deploy the API to Kubernetes using the included Helm chart.
-
-### Prerequisites
-
-- [Helm](https://helm.sh/docs/intro/install/) v3+
-- A Kubernetes cluster (or [minikube](https://minikube.sigs.k8s.io/) for local development)
-
-### Quick start with minikube
-
-```bash
-# Build the Docker image and load it into minikube
-docker build -t resume-tailor:latest .
-minikube image load resume-tailor:latest
-
-# Install the Helm chart
-make helm-install
-# or: helm upgrade --install resume-tailor helm/resume-tailor --set apiKey=$ANTHROPIC_API_KEY
-
-# Port-forward to access the API
-kubectl port-forward svc/resume-tailor 8000:8000
-curl http://localhost:8000/api/v1/health
-```
-
-### Helm commands
-
-```bash
-make helm-install    # Install or upgrade the release
-make helm-uninstall  # Remove the release
-make helm-template   # Render templates locally (dry-run)
-```
-
-### Configuration
-
-Override defaults in `helm/resume-tailor/values.yaml` or pass `--set` flags:
-
-```bash
-helm upgrade --install resume-tailor helm/resume-tailor \
-  --set apiKey=$ANTHROPIC_API_KEY \
-  --set replicaCount=3 \
-  --set ingress.enabled=true \
-  --set ingress.host=resume-tailor.example.com
-```
-
-| Value | Default | Description |
-|-------|---------|-------------|
-| `replicaCount` | `1` | Number of pod replicas |
-| `image.repository` | `resume-tailor` | Docker image repository |
-| `image.tag` | `latest` | Docker image tag |
-| `service.port` | `8000` | Service port |
-| `ingress.enabled` | `false` | Enable Ingress resource |
-| `ingress.host` | `resume-tailor.local` | Ingress hostname |
-| `apiKey` | `""` | Anthropic API key (stored as Secret) |
-| `resources.limits.cpu` | `500m` | CPU limit |
-| `resources.limits.memory` | `512Mi` | Memory limit |
-
-## ArgoCD GitOps Deployment
-
-Automate deployments with ArgoCD — any push to `main` that changes the Helm chart will auto-deploy to your cluster.
-
-### Setup
-
-```bash
-# 1. Create the API key secret
-kubectl create secret generic resume-tailor-api-key \
-  --from-literal=api-key=$ANTHROPIC_API_KEY
-
-# 2. Apply the ArgoCD application
-kubectl apply -f argocd/application.yaml
-
-# Or use the Makefile shortcut
-make argocd-setup
-```
-
-### How it works
-
-- ArgoCD watches `helm/resume-tailor` in the repo for changes on `main`
-- **Automated sync** with self-heal and prune enabled
-- Manual cluster drift is automatically corrected
-
-```bash
-make argocd-status   # Check sync status
-```
-
-See [argocd/README.md](argocd/README.md) for full details.
-
-## Observability
-
-The API includes built-in OpenTelemetry tracing and Prometheus metrics.
-
-### Prometheus Metrics
-
-The `/metrics` endpoint exposes metrics in Prometheus format:
-
-```bash
-# Start the API
-make api
-
-# View raw metrics
-make metrics
-# or: curl http://localhost:8000/metrics
-```
-
-Available metrics:
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `http_requests_total` | Counter | Total requests by method, endpoint, status code |
-| `http_request_duration_seconds` | Histogram | Request latency by method and endpoint |
-| `http_active_requests` | Gauge | Currently in-flight requests |
-| `claude_api_calls_total` | Counter | Claude API calls by model and status |
-| `claude_api_call_duration_seconds` | Histogram | Claude API call latency by model |
-| `resume_generations_total` | Counter | Total successful resume generations |
-
-### OpenTelemetry Tracing
-
-Traces are exported to the console by default. To send traces to an OTLP collector:
-
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
-make api
-```
-
-### Grafana Dashboard
-
-A pre-built dashboard is available at `grafana/resume-tailor-dashboard.json`. Import it into Grafana manually or deploy via Helm (see below).
-
-Panels: Request Rate, Response Time (P50/P95/P99), Error Rate, Claude API Latency, Active Requests, Resume Generations.
-
-### Kubernetes Monitoring
-
-Enable the Prometheus ServiceMonitor and Grafana dashboard auto-import in Helm:
-
-```bash
-helm upgrade --install resume-tailor helm/resume-tailor \
-  --set apiKey=$ANTHROPIC_API_KEY \
-  --set metrics.serviceMonitor.enabled=true \
-  --set metrics.grafanaDashboard.enabled=true
-```
-
-| Value | Default | Description |
-|-------|---------|-------------|
-| `metrics.serviceMonitor.enabled` | `false` | Create a ServiceMonitor for Prometheus Operator |
-| `metrics.serviceMonitor.interval` | `30s` | Scrape interval |
-| `metrics.grafanaDashboard.enabled` | `false` | Create a ConfigMap for Grafana sidecar auto-import |
-
-## How It Works
-
-```
-Your Resume + Job Description
-         │
-         ▼
-   ┌─────────────┐
-   │  JD Analysis │ ← Extract skills, keywords, company context
-   └──────┬──────┘
-          ▼
-   ┌──────────────┐
-   │ Gap Analysis  │ ← Find what's missing, ask follow-up questions
-   └──────┬───────┘
-          ▼
-   ┌───────────────────┐
-   │ Compatibility Score│ ← 0-100% match with go/no-go recommendation
-   └───────┬───────────┘
-           ▼
-   ┌──────────────────┐
-   │ Resume Generation │ ← Tailored content using your answers
-   └───────┬──────────┘
-           ▼
-   DOCX / PDF / Markdown
-```
+- **Dry-run mode** — test the full flow without using API credits
+- **Local or cloud AI** — use Claude API or free local Ollama models
 
 ## Commands
 
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
-| `generate` | Full pipeline — analyze JD, score fit, generate tailored resume |
-| `review` | Review and improve your base resume with AI suggestions |
-| `profile view` | Show your profile summary |
-| `profile update` | Update name, email, phone, etc. |
-| `profile edit` | Open profile.json in your editor |
-| `profile export` | Print profile as markdown |
-| `profile backup` | Create a timestamped backup |
-| `profile restore` | Restore from a backup |
-| `profile reset` | Delete profile and start over |
+| `generate` | Full pipeline: analyze job posting, score your fit, generate tailored resume |
+| `review` | Get AI feedback on your base resume and apply improvements |
+| `profile view` | See what's in your profile |
+| `profile update` | Change your name, email, phone, etc. |
+| `profile edit` | Open your profile in a text editor |
+| `profile export` | Print your profile as readable text |
+| `profile backup` | Save a backup copy of your profile |
+| `profile restore` | Restore a previous backup |
+| `profile reset` | Delete your profile and start fresh |
 
-Key flags: `--format pdf`, `--skip-questions`, `--skip-assessment`, `--resume-session`, `--dry-run`, `--model ollama:qwen3.5`, `--profile <name>`, `--verbose`
+### Key Flags
+
+| Flag | Works with | What it does |
+|------|-----------|-------------|
+| `--format pdf` | `generate` | Output as PDF (also: `docx`, `md`, `all`) |
+| `--model ollama:qwen3.5` | `generate`, `review` | Use a local model instead of Claude |
+| `--skip-questions` | `generate` | Skip the follow-up questions |
+| `--skip-assessment` | `generate` | Skip the compatibility score |
+| `--resume-session` | `generate` | Reuse inputs from your last run |
+| `--dry-run` | `generate` | Test without calling any AI |
+| `--profile wife` | any | Use a different profile |
+| `--verbose` | any | Show detailed logs |
 
 See [USAGE.md](USAGE.md) for the complete reference with all flags, workflows, and troubleshooting.
 
 ## REST API
 
-Resume Tailor also provides a FastAPI REST API for programmatic access.
-
-### Start the server
+Resume Tailor also runs as a web API for programmatic access.
 
 ```bash
+# Start the server
 make api
-# or: uvicorn src.web:app --reload --port 8000
-```
 
-API docs are available at `http://localhost:8000/docs` (Swagger UI) and `http://localhost:8000/redoc`.
-
-### Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/health` | Health check — returns status and API key presence |
-| `POST` | `/api/v1/analyze-jd` | Analyze a job description, returns structured skills/keywords/responsibilities |
-| `POST` | `/api/v1/assess-compatibility` | Score resume-JD match (0-100%) with detailed breakdown |
-| `POST` | `/api/v1/generate` | Generate a tailored resume as JSON |
-| `POST` | `/api/v1/generate/pdf` | Generate a tailored resume and download as PDF |
-| `POST` | `/api/v1/review` | Review a resume — score, strengths, weaknesses, improved bullets |
-
-### Example requests
-
-```bash
 # Health check
 curl http://localhost:8000/api/v1/health
 
-# Analyze a job description
-curl -X POST http://localhost:8000/api/v1/analyze-jd \
-  -H "Content-Type: application/json" \
-  -d '{"jd_text": "We are looking for a Senior Python Developer..."}'
-
-# Assess compatibility
-curl -X POST http://localhost:8000/api/v1/assess-compatibility \
-  -H "Content-Type: application/json" \
-  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}'
-
-# Generate tailored resume
+# Generate a resume
 curl -X POST http://localhost:8000/api/v1/generate \
   -H "Content-Type: application/json" \
-  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer...", "additional_context": "I also know Go"}'
-
-# Generate and download PDF
-curl -X POST http://localhost:8000/api/v1/generate/pdf \
-  -H "Content-Type: application/json" \
-  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}' \
-  -o resume.pdf
-
-# Review resume
-curl -X POST http://localhost:8000/api/v1/review \
-  -H "Content-Type: application/json" \
-  -d '{"resume_text": "Jane Doe, Software Engineer..."}'
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}'
 ```
 
-## Project Structure
+API docs at http://localhost:8000/docs (interactive Swagger UI).
 
-```
-resume-tailor/
-├── src/
-│   ├── main.py                # CLI entry point (click commands)
-│   ├── web.py                 # FastAPI REST API entry point
-│   ├── api.py                 # Claude API call helpers with retry logic
-│   ├── llm_client.py          # Unified LLM client (Claude + Ollama)
-│   ├── telemetry.py           # OpenTelemetry tracing & Prometheus metrics
-│   ├── config.py              # Centralized configuration
-│   ├── models.py              # Data models (dataclasses)
-│   ├── profile.py             # Profile management (~/.resume-tailor/)
-│   ├── session.py             # Session save/restore
-│   ├── resume_parser.py       # Parse resume from text/docx/pdf
-│   ├── jd_analyzer.py         # Analyze job descriptions
-│   ├── gap_analyzer.py        # Compare resume vs JD requirements
-│   ├── compatibility_assessor.py  # Score resume-JD match
-│   ├── resume_generator.py    # Generate tailored resume content
-│   ├── resume_reviewer.py     # Review and improve base resume
-│   ├── docx_builder.py        # Build DOCX/PDF/Markdown output
-│   ├── prompts.py             # Prompt template loader
-│   └── prompts/               # Prompt templates (Markdown files)
-├── helm/resume-tailor/        # Helm chart for Kubernetes
-├── argocd/                    # ArgoCD GitOps deployment
-├── grafana/                   # Standalone Grafana dashboard
-├── scripts/                   # Release versioning scripts
-├── tests/                     # Test suite with fixtures
-└── VERSION                    # Semantic version file
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/health` | Health check |
+| `POST` | `/api/v1/analyze-jd` | Analyze a job description |
+| `POST` | `/api/v1/assess-compatibility` | Score resume vs job match (0-100%) |
+| `POST` | `/api/v1/generate` | Generate tailored resume (JSON) |
+| `POST` | `/api/v1/generate/pdf` | Generate and download as PDF |
+| `POST` | `/api/v1/review` | Review resume with AI feedback |
+
+## Supported Ollama Models
+
+Any Ollama model works. Some popular choices:
+
+| Model | Flag | Notes |
+|-------|------|-------|
+| Qwen 3.5 | `--model ollama:qwen3.5` | Good all-around, recommended |
+| Devstral | `--model ollama:devstral` | Strong at technical resumes |
+| Gemma 3 | `--model ollama:gemma3` | Lightweight option |
 
 ## Contributing
 
 ```bash
-# Install dev dependencies
-make dev-install
-
-# Run tests
-make test
-
-# Run linter
-make lint
-
-# Format code
-make format
-
-# Run the tool
-make run
+make dev-install   # Install dev dependencies
+make test          # Run tests
+make lint          # Run linter
+make format        # Format code
 ```
-
-### All Makefile Targets
-
-| Target | Description |
-|--------|-------------|
-| `make install` | Create venv and install runtime dependencies |
-| `make dev-install` | Install runtime + dev dependencies |
-| `make test` | Run pytest |
-| `make lint` | Run ruff linter |
-| `make format` | Run black formatter |
-| `make run` | Run the generate command |
-| `make run-profile PROFILE=name` | Run generate with a named profile |
-| `make dry-run` | Run with mock data (no API calls) |
-| `make run-local MODEL=ollama:qwen3.5` | Run with a local Ollama model |
-| `make api` | Start FastAPI server on port 8000 |
-| `make metrics` | Fetch raw Prometheus metrics from running API |
-| `make docker-build` | Build Docker image |
-| `make docker-run` | Run Docker container interactively |
-| `make docker-ollama` | Run CLI + Ollama together (no API key needed) |
-| `make docker-ollama-api` | Start API server + Ollama together |
-| `make docker-ollama-pull MODEL=qwen3.5` | Pull a model into the Ollama container |
-| `make helm-install` | Install/upgrade Helm chart to Kubernetes |
-| `make helm-uninstall` | Uninstall Helm chart |
-| `make helm-template` | Render Helm templates locally (dry-run) |
-| `make argocd-setup` | Create API key secret and apply ArgoCD app |
-| `make argocd-status` | Check ArgoCD sync status |
-| `make release-patch` | Bump patch version, commit, and tag |
-| `make release-minor` | Bump minor version, commit, and tag |
-| `make release-major` | Bump major version, commit, and tag |
-| `make release-push` | Push commits and tags to GitHub |
-| `make clean` | Remove venv, pycache, and output files |
 
 ## License
 

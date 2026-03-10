@@ -1,360 +1,675 @@
 [English](USAGE.md) | [中文](USAGE_CN.md)
 
-# Resume Tailor - Quick Reference Guide
+# Resume Tailor - Complete Guide
 
-## Getting Started
+Everything you can do with Resume Tailor, organized by what you're trying to accomplish.
+
+## Table of Contents
+
+- [I want to apply to a new job](#i-want-to-apply-to-a-new-job)
+- [I want to set up a profile for someone else](#i-want-to-set-up-a-profile-for-someone-else)
+- [I want to improve my base resume](#i-want-to-improve-my-base-resume)
+- [I want to try different answers for the same job](#i-want-to-try-different-answers-for-the-same-job)
+- [I want to use a free local model instead of Claude](#i-want-to-use-a-free-local-model-instead-of-claude)
+- [I want to run everything in Docker](#i-want-to-run-everything-in-docker)
+- [I want to use the REST API](#i-want-to-use-the-rest-api)
+- [I want to deploy to Kubernetes](#i-want-to-deploy-to-kubernetes)
+- [I want to set up monitoring](#i-want-to-set-up-monitoring)
+- [I want to back up my data](#i-want-to-back-up-my-data)
+- [I want to release a new version](#i-want-to-release-a-new-version)
+- [All flags reference](#all-flags-reference)
+- [All Makefile targets](#all-makefile-targets)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## I want to apply to a new job
+
+### First time (no profile yet)
 
 ```bash
-cd resume-tailor
-source venv/bin/activate        # Linux/macOS
-# venv\Scripts\activate         # Windows
-export ANTHROPIC_API_KEY="your-key-here"
-```
-
-## Commands
-
-### `generate` — Create a tailored resume
-
-```bash
-# Interactive (prompts for resume + JD)
 python src/main.py generate
-
-# Quick run — skip follow-up questions
-python src/main.py generate --skip-questions
-
-# Skip the compatibility assessment
-python src/main.py generate --skip-assessment
-
-# Choose output format
-python src/main.py generate --format pdf
-python src/main.py generate --format md
-python src/main.py generate --format all
-
-# Custom output path
-python src/main.py generate --output ~/Desktop/my_resume.docx
-
-# Provide a reference resume from someone in a similar role
-python src/main.py generate --reference path/to/reference_resume.docx
-
-# Reload inputs from last session
-python src/main.py generate --resume-session
-
-# Test without using API credits
-python src/main.py generate --dry-run
-
-# Use a local Ollama model instead of Claude
-python src/main.py generate --model ollama:qwen3.5
-python src/main.py generate --model ollama:devstral
-python src/main.py generate --model ollama:gemma3
-
-# Combine flags
-python src/main.py generate --resume-session --skip-questions --format pdf
 ```
 
-### `review` — Review and improve your base resume
+The tool walks you through everything:
+
+1. Creates a profile — enter your name, email, phone
+2. Paste your resume (or give a file path to a `.txt`, `.docx`, or `.pdf`)
+3. Optionally provide a reference resume from someone in a similar role
+4. AI reviews your resume and suggests improvements
+5. Paste the job description (or give a file path)
+6. Answer a few questions about gaps between your resume and the job
+7. See a compatibility score (0-100%)
+8. Get your tailored resume in the `output/` folder
+
+### Second time onward (profile exists)
+
+```bash
+python src/main.py generate
+```
+
+Same command. The tool remembers your resume and contact info from last time. Just paste the new job description and answer the gap questions. If you've answered similar questions before, the tool offers to reuse your previous answers.
+
+### I want PDF output
+
+```bash
+python src/main.py generate --format pdf
+```
+
+Requires LibreOffice installed on your system. If you don't have it:
+
+```bash
+# Ubuntu / Debian
+sudo apt install libreoffice-writer -y
+
+# macOS
+brew install --cask libreoffice
+```
+
+Or use `--format docx` and convert manually.
+
+### I want to skip the questions and just generate
+
+```bash
+python src/main.py generate --skip-questions
+```
+
+Skips the gap analysis questions. The AI will do its best with what's in your resume.
+
+### I want to skip the compatibility score
+
+```bash
+python src/main.py generate --skip-assessment
+```
+
+### I want to save the output somewhere specific
+
+```bash
+# Save to a specific folder
+python src/main.py generate --output ~/Desktop/
+
+# Save to a specific file
+python src/main.py generate --output ~/Desktop/my_resume.docx
+```
+
+### I want to provide a reference resume
+
+If you have a resume from someone who already has the job you want:
+
+```bash
+python src/main.py generate --reference path/to/their_resume.docx
+```
+
+The AI uses it to understand what the company values — tone, keywords, structure.
+
+### I have all my answers ready and want to go fast
+
+```bash
+python src/main.py generate --skip-questions --skip-assessment --format pdf
+```
+
+---
+
+## I want to set up a profile for someone else
+
+Use the `--profile` flag to create a separate profile. Each profile has its own resume, experience bank, and history.
+
+```bash
+# Set up for your wife
+python src/main.py --profile wife generate
+
+# Set up for a friend
+python src/main.py --profile alex generate
+```
+
+Each person's data is stored separately at `~/.resume-tailor/<name>/profile.json`.
+
+### Managing another person's profile
+
+```bash
+# View their profile
+python src/main.py --profile wife profile view
+
+# Update their contact info
+python src/main.py --profile wife profile update
+
+# Back up their profile
+python src/main.py --profile wife profile backup
+
+# Reset and start over
+python src/main.py --profile wife profile reset
+```
+
+---
+
+## I want to improve my base resume
+
+The `review` command analyzes your saved resume and suggests improvements — better bullet points, missing keywords, and overall quality score.
 
 ```bash
 python src/main.py review
+```
 
-# Review using a local Ollama model
+The tool will:
+1. Show a quality score (0-100)
+2. List strengths and weaknesses
+3. Suggest improved bullet points
+4. Ask if you want to apply the improvements
+5. If yes, ask you to fill in any placeholder metrics (e.g., "Increased performance by [X%]")
+6. Save the improved resume back to your profile
+
+### Review using a local model
+
+```bash
 python src/main.py review --model ollama:qwen3.5
 ```
 
-Analyzes your saved base resume for quality, suggests improvements, and optionally applies them.
+---
 
-### `profile` — Manage your profile
+## I want to try different answers for the same job
 
-```bash
-python src/main.py profile view      # Show full profile summary
-python src/main.py profile update    # Update name, email, phone, etc.
-python src/main.py profile edit      # Open profile.json in your editor
-python src/main.py profile export    # Print profile as markdown
-python src/main.py profile backup    # Create a timestamped backup
-python src/main.py profile restore   # Restore from a backup
-python src/main.py profile reset     # Delete profile and start over
-```
-
-### Global flags
-
-```bash
-python src/main.py --verbose generate   # Enable debug logging (works with any command)
-python src/main.py --profile wife generate   # Use a named profile
-```
-
-### Multi-profile support
-
-Use `--profile <name>` to manage separate profiles for different people on the same machine. Each profile has its own resume, experience bank, history, and preferences.
-
-```bash
-# Create/use a profile for your wife
-python src/main.py --profile wife generate
-python src/main.py --profile wife profile view
-python src/main.py --profile wife profile reset
-
-# Default profile (no flag needed)
-python src/main.py generate
-```
-
-Profiles are stored at `~/.resume-tailor/<profile_name>/profile.json`.
-
-## Common Workflows
-
-### First time setup
-
-1. Run `python src/main.py generate`
-2. The tool creates a profile — enter your name, email, etc.
-3. Paste or provide a file path to your base resume
-4. Optionally provide a reference resume
-5. The tool reviews your resume and suggests improvements
-6. Paste the target job description
-7. Answer follow-up questions about gaps
-8. Get your tailored resume in `output/`
-
-### Applying to a new job
-
-1. Run `python src/main.py generate`
-2. Your profile resume is used automatically
-3. Paste the new job description
-4. Answer gap questions (previously saved answers are offered for reuse)
-5. Review the compatibility score
-6. Get your tailored resume
-
-### Reusing a session
-
-If you want to regenerate with the same resume + JD (e.g., to try different answers):
+Use `--resume-session` to reload your last run's inputs:
 
 ```bash
 python src/main.py generate --resume-session
 ```
 
-The tool restores your last resume text, JD, and answers. You can reuse or re-enter them.
+The tool restores your resume text, job description, and previous answers. You can keep any of them or re-enter new ones. This is useful when you want to:
 
-### Reviewing your base resume
+- Try emphasizing different experience
+- Change your answers to gap questions
+- Generate a different format (add `--format pdf`)
+
+---
+
+## I want to use a free local model instead of Claude
+
+[Ollama](https://ollama.com/) lets you run AI models on your own machine for free.
+
+### Install Ollama
 
 ```bash
-python src/main.py review
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# macOS
+brew install ollama
+
+# Windows — download from https://ollama.com/download
 ```
 
-Run this periodically to improve your base resume. The tool suggests better bullet points and lets you fill in metrics. Improvements are saved back to your profile.
-
-### Managing your profile
+### Download a model and run
 
 ```bash
-# Check what's saved
-python src/main.py profile view
-
-# Update contact info
-python src/main.py profile update
-
-# Start fresh
-python src/main.py profile reset
+ollama pull qwen3.5
+python src/main.py generate --model ollama:qwen3.5
 ```
 
-Your profile stores: identity info, base resume, experience bank (saved answers to gap questions), application history, and output preferences.
+No API key needed. The `--model` flag works with both `generate` and `review`:
 
-## CLI Flags Reference
+```bash
+python src/main.py review --model ollama:qwen3.5
+```
 
-| Flag | Command | Description |
-|------|---------|-------------|
-| `--verbose` | (global) | Enable debug logging |
-| `--profile` | (global) | Profile name (default: `default`) |
-| `--format` | `generate` | Output format: `docx`, `pdf`, `md`, or `all` |
-| `--output` | `generate` | Custom output file or directory path |
-| `--skip-questions` | `generate` | Skip follow-up questions |
-| `--skip-assessment` | `generate` | Skip compatibility assessment |
-| `--reference` | `generate` | Path to a reference resume |
-| `--resume-session` | `generate` | Restore last session's inputs |
-| `--model` | `generate`, `review` | LLM model: `claude` (default) or `ollama:<name>` |
-| `--dry-run` | `generate` | Use mock data, no API calls |
+### Available models
 
-## Backup & Data Safety
+Any Ollama model works. Some good choices:
 
-### Creating a backup
+| Model | Command | Notes |
+|-------|---------|-------|
+| Qwen 3.5 | `--model ollama:qwen3.5` | Good all-around, recommended |
+| Devstral | `--model ollama:devstral` | Strong at technical resumes |
+| Gemma 3 | `--model ollama:gemma3` | Lightweight, faster |
+
+### Test without any AI
+
+```bash
+python src/main.py generate --dry-run
+```
+
+Uses mock responses so you can test the full flow without spending credits or needing a model.
+
+---
+
+## I want to run everything in Docker
+
+### Docker + Claude API
+
+```bash
+docker build -t resume-tailor .
+
+docker run -it \
+  -e ANTHROPIC_API_KEY="sk-ant-your-key" \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --format pdf --output /output/
+```
+
+Or use Docker Compose (connects to Ollama running on your machine):
+
+```bash
+docker compose run --rm resume-tailor
+```
+
+### Docker + Ollama (everything containerized)
+
+No need to install anything on your machine except Docker.
+
+```bash
+# Start Ollama container
+docker compose -f docker-compose.full.yml up -d ollama
+
+# Download a model (one-time)
+docker compose -f docker-compose.full.yml exec ollama ollama pull qwen3.5
+
+# Generate a resume
+docker compose -f docker-compose.full.yml run --rm resume-tailor
+
+# Or use Makefile shortcuts
+make docker-ollama-pull MODEL=qwen3.5
+make docker-ollama
+```
+
+### Docker + API server + Ollama
+
+```bash
+make docker-ollama-api
+```
+
+This starts both the Ollama model server and the Resume Tailor REST API. The API is available at http://localhost:8000.
+
+---
+
+## I want to use the REST API
+
+Resume Tailor has a web API for programmatic access.
+
+### Start the server
+
+```bash
+make api
+```
+
+API docs: http://localhost:8000/docs (interactive Swagger UI).
+
+### Endpoints
+
+| Method | Endpoint | What it does |
+|--------|----------|-------------|
+| `GET` | `/api/v1/health` | Check if the server is running |
+| `POST` | `/api/v1/analyze-jd` | Analyze a job description |
+| `POST` | `/api/v1/assess-compatibility` | Score resume vs job match (0-100%) |
+| `POST` | `/api/v1/generate` | Generate a tailored resume (returns JSON) |
+| `POST` | `/api/v1/generate/pdf` | Generate and download as PDF file |
+| `POST` | `/api/v1/review` | Review a resume and get improvement suggestions |
+| `GET` | `/metrics` | Prometheus metrics |
+
+### Examples
+
+```bash
+# Check server health
+curl http://localhost:8000/api/v1/health
+
+# Analyze a job description
+curl -X POST http://localhost:8000/api/v1/analyze-jd \
+  -H "Content-Type: application/json" \
+  -d '{"jd_text": "We are looking for a Senior Python Developer..."}'
+
+# Score resume-job compatibility
+curl -X POST http://localhost:8000/api/v1/assess-compatibility \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}'
+
+# Generate a tailored resume
+curl -X POST http://localhost:8000/api/v1/generate \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer...", "additional_context": "I also know Go"}'
+
+# Generate and download as PDF
+curl -X POST http://localhost:8000/api/v1/generate/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}' \
+  -o resume.pdf
+
+# Review a resume
+curl -X POST http://localhost:8000/api/v1/review \
+  -H "Content-Type: application/json" \
+  -d '{"resume_text": "Jane Doe, Software Engineer..."}'
+```
+
+### Using Ollama with the API
+
+Pass `"model": "ollama:qwen3.5"` in any request body:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analyze-jd \
+  -H "Content-Type: application/json" \
+  -d '{"jd_text": "We are looking for...", "model": "ollama:qwen3.5"}'
+```
+
+---
+
+## I want to deploy to Kubernetes
+
+The project includes a Helm chart for Kubernetes deployment.
+
+### What you need
+
+- [Docker](https://docs.docker.com/get-docker/) installed
+- [Helm](https://helm.sh/docs/intro/install/) v3+
+- A Kubernetes cluster (or [minikube](https://minikube.sigs.k8s.io/) for testing locally)
+
+### Deploy with minikube (local testing)
+
+```bash
+# Build the image and load it into minikube
+docker build -t resume-tailor:latest .
+minikube image load resume-tailor:latest
+
+# Deploy
+make helm-install
+
+# Access the API
+kubectl port-forward svc/resume-tailor 8000:8000
+curl http://localhost:8000/api/v1/health
+```
+
+### Deploy to a real cluster
+
+```bash
+helm upgrade --install resume-tailor helm/resume-tailor \
+  --set apiKey=$ANTHROPIC_API_KEY \
+  --set image.repository=your-registry/resume-tailor \
+  --set image.tag=latest
+```
+
+### Configuration options
+
+| Setting | Default | What it does |
+|---------|---------|-------------|
+| `replicaCount` | `1` | Number of instances to run |
+| `image.repository` | `resume-tailor` | Docker image to use |
+| `image.tag` | `latest` | Image version |
+| `service.port` | `8000` | Port the service listens on |
+| `ingress.enabled` | `false` | Expose via Ingress (for public access) |
+| `ingress.host` | `resume-tailor.local` | Domain name for Ingress |
+| `apiKey` | `""` | Your Anthropic API key |
+| `resources.limits.cpu` | `500m` | Max CPU per instance |
+| `resources.limits.memory` | `512Mi` | Max memory per instance |
+
+### Auto-deploy with ArgoCD
+
+ArgoCD can automatically deploy changes when you push to `main`:
+
+```bash
+# One-time setup
+make argocd-setup
+
+# Check status
+make argocd-status
+```
+
+How it works: ArgoCD watches `helm/resume-tailor` in your repo. When you push changes to `main`, it automatically syncs to your cluster. Manual changes on the cluster are auto-corrected.
+
+See [argocd/README.md](argocd/README.md) for full setup details.
+
+### Remove the deployment
+
+```bash
+make helm-uninstall
+```
+
+---
+
+## I want to set up monitoring
+
+The API has built-in metrics for monitoring.
+
+### View metrics
+
+```bash
+# Start the API
+make api
+
+# See raw metrics
+curl http://localhost:8000/metrics
+```
+
+### Available metrics
+
+| Metric | What it tracks |
+|--------|---------------|
+| `http_requests_total` | Total requests (by endpoint and status code) |
+| `http_request_duration_seconds` | How long requests take |
+| `http_active_requests` | Currently in-flight requests |
+| `claude_api_calls_total` | AI API calls (by model and success/failure) |
+| `claude_api_call_duration_seconds` | How long AI calls take |
+| `resume_generations_total` | Total resumes generated |
+
+### Grafana dashboard
+
+Import `grafana/resume-tailor-dashboard.json` into Grafana for a pre-built dashboard with:
+- Request rate and error rate
+- Response time (P50/P95/P99)
+- AI API latency
+- Active requests and resume generation count
+
+### Kubernetes monitoring
+
+Enable automatic metric collection and Grafana dashboard in Helm:
+
+```bash
+helm upgrade --install resume-tailor helm/resume-tailor \
+  --set apiKey=$ANTHROPIC_API_KEY \
+  --set metrics.serviceMonitor.enabled=true \
+  --set metrics.grafanaDashboard.enabled=true
+```
+
+### Send traces to a collector
+
+By default, traces go to the console. To send them to an OpenTelemetry collector:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
+make api
+```
+
+---
+
+## I want to back up my data
+
+### Create a backup
 
 ```bash
 python src/main.py profile backup
 ```
 
-Creates a copy of your `profile.json` as `profile_backup_YYYY-MM-DD.json` in the same profile directory (`~/.resume-tailor/<profile>/`). Run this before making major changes like `profile reset` or `review` with improvements applied.
+This saves a copy of your profile as `profile_backup_YYYY-MM-DD.json` in `~/.resume-tailor/<profile>/`.
 
-### Restoring from a backup
+### Restore from a backup
 
 ```bash
 python src/main.py profile restore
 ```
 
-Lists all available backups and lets you choose one to restore. The selected backup overwrites your current `profile.json`.
+Shows all available backups and lets you pick one.
 
-### Multi-profile backups
-
-Backups are per-profile. Use `--profile` to back up or restore a specific profile:
+### Back up a specific profile
 
 ```bash
 python src/main.py --profile wife profile backup
 python src/main.py --profile wife profile restore
 ```
 
-### Best practices
+### Tips
 
-- **Back up before resetting:** Run `profile backup` before `profile reset` so you can recover if needed.
-- **Back up before reviews:** The `review` command can modify your base resume. Back up first if you want to compare versions.
-- **Multiple backups per day** overwrite each other (same date = same filename). If you need multiple snapshots in one day, manually rename the backup file.
+- **Always back up before resetting** — run `profile backup` before `profile reset`
+- **Always back up before review** — the `review` command can modify your resume
+- Multiple backups on the same day overwrite each other (same date = same filename)
 
-## Release Workflow
+---
 
-The project uses semantic versioning (`MAJOR.MINOR.PATCH`) tracked in a `VERSION` file. Releases automatically update the VERSION file, the Helm `Chart.yaml`, create a commit, and tag it.
+## I want to release a new version
 
-### Bumping a version
+The project uses semantic versioning (e.g., `1.5.0`). The version is tracked in the `VERSION` file.
 
-```bash
-make release-patch   # 1.2.1 -> 1.2.2 (bug fixes)
-make release-minor   # 1.2.2 -> 1.3.0 (new features)
-make release-major   # 1.3.0 -> 2.0.0 (breaking changes)
-```
-
-### Pushing a release
+### Bump and publish
 
 ```bash
-make release-push    # Push commits and tags to GitHub
-```
-
-### Full release example
-
-```bash
-# 1. Make sure all tests pass
+# 1. Make sure tests pass
 make test
 
-# 2. Bump the version
-make release-patch
+# 2. Bump the version (pick one)
+make release-patch   # 1.5.0 → 1.5.1 (bug fixes)
+make release-minor   # 1.5.0 → 1.6.0 (new features)
+make release-major   # 1.5.0 → 2.0.0 (breaking changes)
 
 # 3. Push to GitHub
 make release-push
 ```
 
-### What happens during a release
+This automatically updates `VERSION`, the Helm chart version, creates a git commit, and tags it.
 
-1. Reads the current version from `VERSION`
-2. Bumps the appropriate segment (patch/minor/major)
-3. Updates `VERSION` and `helm/resume-tailor/Chart.yaml`
-4. Commits with message `release: vX.Y.Z`
-5. Creates a git tag `vX.Y.Z`
+---
 
-## REST API
+## All flags reference
 
-Start the FastAPI server:
+| Flag | Works with | What it does | Default |
+|------|-----------|-------------|---------|
+| `--verbose` | any command | Show detailed debug logs | off |
+| `--profile <name>` | any command | Use a named profile | `default` |
+| `--format <type>` | `generate` | Output format: `docx`, `pdf`, `md`, `all` | `docx` |
+| `--output <path>` | `generate` | Custom output directory or file path | `output/` |
+| `--skip-questions` | `generate` | Skip gap analysis follow-up questions | off |
+| `--skip-assessment` | `generate` | Skip compatibility score | off |
+| `--reference <file>` | `generate` | Path to a reference resume | none |
+| `--resume-session` | `generate` | Restore inputs from last session | off |
+| `--model <name>` | `generate`, `review` | AI model: `claude` or `ollama:<name>` | `claude` |
+| `--dry-run` | `generate` | Use mock data, no AI calls | off |
 
-```bash
-make api
-# or: uvicorn src.web:app --reload --port 8000
-```
+---
 
-API docs: `http://localhost:8000/docs` (Swagger UI) or `http://localhost:8000/redoc`.
+## All Makefile targets
 
-### Endpoints
+Run `make help` to see this list in your terminal.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/health` | Health check |
-| `POST` | `/api/v1/analyze-jd` | Analyze a job description |
-| `POST` | `/api/v1/assess-compatibility` | Score resume-JD match (0-100%) |
-| `POST` | `/api/v1/generate` | Generate a tailored resume as JSON |
-| `POST` | `/api/v1/generate/pdf` | Generate and download as PDF |
-| `POST` | `/api/v1/review` | Review a resume with AI feedback |
-| `GET` | `/metrics` | Prometheus metrics |
-
-### Example
-
-```bash
-curl -X POST http://localhost:8000/api/v1/generate \
-  -H "Content-Type: application/json" \
-  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer...", "additional_context": "I also know Go"}'
-```
-
-## Makefile Targets
-
-Run `make help` to see all targets. Key ones:
-
-| Target | Description |
+| Target | What it does |
 |--------|-------------|
-| `make install` | Create venv and install dependencies |
-| `make dev-install` | Install runtime + dev dependencies |
-| `make test` | Run pytest |
-| `make lint` | Run ruff linter |
-| `make format` | Run black formatter |
+| `make install` | Create virtual environment and install dependencies |
+| `make dev-install` | Install runtime + development dependencies |
+| `make test` | Run the test suite |
+| `make lint` | Check code for style issues |
+| `make format` | Auto-format code |
 | `make run` | Run the generate command |
-| `make run-profile PROFILE=name` | Run with a named profile |
-| `make dry-run` | Run with mock data (no API calls) |
 | `make run-local MODEL=ollama:qwen3.5` | Run with a local Ollama model |
-| `make api` | Start FastAPI server |
-| `make metrics` | Fetch Prometheus metrics from running API |
-| `make docker-build` | Build Docker image |
-| `make docker-run` | Run Docker container |
-| `make docker-ollama` | Run CLI + Ollama together (fully containerized) |
-| `make docker-ollama-api` | Start API server + Ollama together |
-| `make docker-ollama-pull MODEL=qwen3.5` | Pull a model into the Ollama container |
-| `make helm-install` | Install/upgrade Helm chart |
-| `make helm-uninstall` | Uninstall Helm chart |
-| `make helm-template` | Render Helm templates locally |
-| `make argocd-setup` | Create secret + apply ArgoCD app |
-| `make argocd-status` | Check ArgoCD sync status |
-| `make release-patch` | Bump patch version, commit, tag |
-| `make release-minor` | Bump minor version, commit, tag |
-| `make release-major` | Bump major version, commit, tag |
-| `make release-push` | Push commits and tags to GitHub |
-| `make clean` | Remove venv, pycache, output files |
+| `make run-profile PROFILE=name` | Run with a specific profile |
+| `make dry-run` | Test the full flow with mock data |
+| `make api` | Start the REST API server on port 8000 |
+| `make metrics` | Fetch metrics from the running API |
+| `make docker-build` | Build the Docker image |
+| `make docker-run` | Run the Docker container |
+| `make docker-ollama` | Run CLI + Ollama together in Docker |
+| `make docker-ollama-api` | Start API + Ollama together in Docker |
+| `make docker-ollama-pull MODEL=qwen3.5` | Download a model into the Ollama container |
+| `make test-docker` | Build and smoke-test the Docker image |
+| `make helm-install` | Deploy to Kubernetes via Helm |
+| `make helm-uninstall` | Remove Kubernetes deployment |
+| `make helm-template` | Preview Helm templates without deploying |
+| `make argocd-setup` | Set up ArgoCD auto-deployment |
+| `make argocd-status` | Check ArgoCD deployment status |
+| `make release-patch` | Bump patch version (1.5.0 → 1.5.1) |
+| `make release-minor` | Bump minor version (1.5.0 → 1.6.0) |
+| `make release-major` | Bump major version (1.5.0 → 2.0.0) |
+| `make release-push` | Push release commits and tags to GitHub |
+| `make clean` | Delete virtual environment, caches, and outputs |
+
+---
 
 ## Troubleshooting
 
-### API key not set
+### "ANTHROPIC_API_KEY environment variable is not set"
 
-```
-Error: ANTHROPIC_API_KEY environment variable is not set.
-```
-
-Fix: `export ANTHROPIC_API_KEY="sk-ant-..."` (get one at https://console.anthropic.com/settings/keys)
-
-### Invalid API key
-
-```
-Error: Invalid API key. Check your ANTHROPIC_API_KEY.
-```
-
-Fix: Verify the key at https://console.anthropic.com/settings/keys. Keys start with `sk-ant-`.
-
-### API connection error
-
-```
-Error: Could not connect to the Anthropic API.
-```
-
-Fix: Check your internet connection and any proxy/firewall settings.
-
-### PDF conversion issues
-
-PDF output requires LibreOffice installed on your system:
+You need to set your API key before running:
 
 ```bash
-# Ubuntu/Debian
-sudo apt install libreoffice
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+```
+
+Get a key at https://console.anthropic.com/settings/keys. If you don't want to pay for an API key, use a local model instead:
+
+```bash
+python src/main.py generate --model ollama:qwen3.5
+```
+
+### "Invalid API key"
+
+Your key might be expired or mistyped. Check it at https://console.anthropic.com/settings/keys. It should start with `sk-ant-`.
+
+### "Could not connect to the Anthropic API"
+
+Check your internet connection. If you're behind a corporate firewall or VPN, that might be blocking the connection.
+
+### PDF output isn't working
+
+PDF conversion requires LibreOffice:
+
+```bash
+# Ubuntu / Debian
+sudo apt install libreoffice-writer -y
 
 # macOS
 brew install --cask libreoffice
 ```
 
-If LibreOffice is not available, use `--format docx` and convert manually.
-
-### File path format
-
-- Use forward slashes or escaped backslashes: `path/to/resume.docx`
-- Supported input formats: `.txt`, `.docx`, `.pdf`
-- Tilde expansion works: `~/Documents/resume.docx`
-
-### Profile issues
-
-If your profile gets corrupted:
+If you can't install it, use DOCX instead:
 
 ```bash
+python src/main.py generate --format docx
+```
+
+### Ollama connection refused
+
+Make sure Ollama is running:
+
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# Start it if needed
+ollama serve
+```
+
+If using Docker Compose, make sure the Ollama container is healthy:
+
+```bash
+docker compose -f docker-compose.full.yml ps
+```
+
+### My profile got corrupted
+
+Reset and start fresh:
+
+```bash
+# Back up first (if possible)
+python src/main.py profile backup
+
+# Then reset
 python src/main.py profile reset
 ```
 
-This deletes `profile.json` and lets you start fresh on the next run.
+### File path not found
+
+- Use forward slashes: `path/to/resume.docx`
+- Tilde expansion works: `~/Documents/resume.docx`
+- On Windows/WSL, you can use Windows paths: `/mnt/c/Users/you/Desktop/resume.docx`
+- Supported input formats: `.txt`, `.docx`, `.pdf`
+
+### I want to start completely fresh
+
+```bash
+# Delete your profile
+python src/main.py profile reset
+
+# Delete all generated output
+rm -rf output/*
+```
