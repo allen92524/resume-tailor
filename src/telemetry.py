@@ -21,10 +21,12 @@ if not _otel_disabled:
     _resource = Resource.create({"service.name": "resume-tailor"})
     _provider = TracerProvider(resource=_resource)
 
-    # Always export to console for local development
-    _provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    # Only export to console when running as API server (RESUME_TAILOR_API=1)
+    _api_mode = os.environ.get("RESUME_TAILOR_API", "").lower() in ("1", "true")
+    if _api_mode:
+        _provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
-    # Optionally export to an OTLP endpoint
+    # Export to an OTLP endpoint when configured
     _otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if _otlp_endpoint:
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (

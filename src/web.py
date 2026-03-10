@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import os
+
+# Enable console trace exporter for API server mode (must be set before telemetry import)
+os.environ.setdefault("RESUME_TAILOR_API", "1")
+
 import tempfile
 import time
 
