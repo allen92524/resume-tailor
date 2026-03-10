@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run helm-install helm-uninstall helm-template release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -60,6 +60,16 @@ helm-uninstall: ## Uninstall Helm chart from Kubernetes
 
 helm-template: ## Render Helm templates locally (dry-run)
 	helm template resume-tailor helm/resume-tailor
+
+argocd-setup: ## Create API key secret and apply ArgoCD application
+	@test -n "$(ANTHROPIC_API_KEY)" || (echo "Error: ANTHROPIC_API_KEY is not set" && exit 1)
+	kubectl create secret generic resume-tailor-api-key \
+		--from-literal=api-key=$(ANTHROPIC_API_KEY) \
+		--dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f argocd/application.yaml
+
+argocd-status: ## Show ArgoCD application sync status
+	@kubectl get application resume-tailor -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null && echo || argocd app get resume-tailor --refresh 2>/dev/null || echo "Could not fetch status. Ensure ArgoCD is installed and the application exists."
 
 release-patch: ## Bump patch version, commit, and tag
 	./scripts/bump-version.sh patch

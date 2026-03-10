@@ -189,6 +189,36 @@ helm upgrade --install resume-tailor helm/resume-tailor \
 | `resources.limits.cpu` | `500m` | CPU limit |
 | `resources.limits.memory` | `512Mi` | Memory limit |
 
+## ArgoCD GitOps Deployment
+
+Automate deployments with ArgoCD — any push to `main` that changes the Helm chart will auto-deploy to your cluster.
+
+### Setup
+
+```bash
+# 1. Create the API key secret
+kubectl create secret generic resume-tailor-api-key \
+  --from-literal=api-key=$ANTHROPIC_API_KEY
+
+# 2. Apply the ArgoCD application
+kubectl apply -f argocd/application.yaml
+
+# Or use the Makefile shortcut
+make argocd-setup
+```
+
+### How it works
+
+- ArgoCD watches `helm/resume-tailor` in the repo for changes on `main`
+- **Automated sync** with self-heal and prune enabled
+- Manual cluster drift is automatically corrected
+
+```bash
+make argocd-status   # Check sync status
+```
+
+See [argocd/README.md](argocd/README.md) for full details.
+
 ## How It Works
 
 ```
