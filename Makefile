@@ -53,7 +53,7 @@ docker-run: ## Run Docker container with interactive mode
 		resume-tailor generate
 
 helm-install: ## Install/upgrade Helm chart to Kubernetes
-	helm upgrade --install resume-tailor helm/resume-tailor --set apiKey=$(ANTHROPIC_API_KEY)
+	@helm upgrade --install resume-tailor helm/resume-tailor --set apiKey=$(ANTHROPIC_API_KEY)
 
 helm-uninstall: ## Uninstall Helm chart from Kubernetes
 	helm uninstall resume-tailor
