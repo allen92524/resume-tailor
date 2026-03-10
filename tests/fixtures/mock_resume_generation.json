@@ -1,0 +1,82 @@
+{
+  "name": "Sarah Chen",
+  "email": "sarah.chen@email.com",
+  "phone": "(415) 555-0198",
+  "location": "Seattle, WA",
+  "linkedin": "linkedin.com/in/sarahchen",
+  "summary": "Staff-level platform engineer with 6+ years of experience designing and operating distributed systems that process millions of events at scale. Deep expertise in Python, Go, Kafka, Kubernetes, and AWS, with a track record of reducing infrastructure costs, improving system reliability, and mentoring engineering teams.",
+  "experience": [
+    {
+      "title": "Staff Software Engineer",
+      "company": "CloudScale Technologies",
+      "dates": "Mar 2023 - Present",
+      "bullets": [
+        "Architected real-time event processing platform handling 2M+ events/hour using Kafka and Python, ensuring sub-second end-to-end latency for critical data pipelines",
+        "Led migration from monolithic architecture to distributed microservices, reducing deployment cycles from weekly to daily and improving system reliability",
+        "Designed multi-tenant data isolation layer supporting 500+ enterprise customers with zero cross-tenant data leakage",
+        "Established engineering standards and conducted architecture reviews for a team of 12, driving adoption of observability best practices across the organization",
+        "Reduced infrastructure costs by 35% through Kubernetes container optimization, autoscaling improvements, and resource right-sizing"
+      ],
+      "placeholder_bullets": []
+    },
+    {
+      "title": "Senior Software Engineer",
+      "company": "Nexus Software",
+      "dates": "Aug 2020 - Feb 2023",
+      "bullets": [
+        "Built and operated distributed task scheduling system processing 50K+ jobs daily with 99.9% reliability across AWS infrastructure",
+        "Optimized PostgreSQL and Redis query patterns, reducing average API latency by [X%] and improving p95 response times",
+        "Introduced automated integration testing framework, reducing production rollbacks by 70% and accelerating release velocity",
+        "Mentored 4 junior developers through structured onboarding, pair programming, and weekly architecture discussions"
+      ],
+      "placeholder_bullets": [1]
+    },
+    {
+      "title": "Software Engineer",
+      "company": "BrightPath Labs",
+      "dates": "Jun 2018 - Jul 2020",
+      "bullets": [
+        "Developed high-throughput RESTful APIs serving 100K+ daily active users using Django and PostgreSQL",
+        "Built automated CI/CD pipeline with Jenkins, reducing release cycle from 2 weeks to 2 days",
+        "Implemented feature flagging system enabling safe rollouts for 15+ concurrent experiments across distributed services"
+      ],
+      "placeholder_bullets": []
+    }
+  ],
+  "skills": [
+    "Python",
+    "Go",
+    "Distributed Systems",
+    "Kafka",
+    "Kubernetes",
+    "Docker",
+    "AWS (EC2, ECS, Lambda, S3, DynamoDB)",
+    "PostgreSQL",
+    "Redis",
+    "Terraform",
+    "gRPC",
+    "GraphQL",
+    "MongoDB",
+    "CI/CD",
+    "Observability & Monitoring",
+    "TypeScript",
+    "React",
+    "Agile/Scrum"
+  ],
+  "education": [
+    {
+      "degree": "M.S. Computer Science",
+      "institution": "University of Washington",
+      "year": "2018"
+    },
+    {
+      "degree": "B.S. Computer Engineering",
+      "institution": "UC San Diego",
+      "year": "2016"
+    }
+  ],
+  "certifications": [
+    "AWS Certified Solutions Architect - Professional",
+    "Certified Kubernetes Administrator (CKA)"
+  ]
+}

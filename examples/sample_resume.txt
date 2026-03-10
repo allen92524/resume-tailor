@@ -1,0 +1,30 @@
+John Smith
+john.smith@email.com | (555) 123-4567 | San Francisco, CA | linkedin.com/in/johnsmith
+
+PROFESSIONAL SUMMARY
+Software engineer with 5 years of experience building web applications and backend services. Skilled in Python, JavaScript, and cloud infrastructure.
+
+EXPERIENCE
+
+Senior Software Engineer — Acme Corp
+Jan 2022 - Present
+- Led development of a microservices platform serving 10M+ requests/day
+- Designed and implemented RESTful APIs using Python/FastAPI
+- Reduced deployment time by 60% by implementing CI/CD pipelines with GitHub Actions
+- Mentored 3 junior engineers through code reviews and pair programming
+
+Software Engineer — StartupXYZ
+Jun 2019 - Dec 2021
+- Built full-stack features using React and Node.js for a SaaS analytics platform
+- Optimized PostgreSQL queries, improving dashboard load times by 40%
+- Implemented automated testing suite, increasing code coverage from 45% to 85%
+- Collaborated with product team to define technical requirements for new features
+
+SKILLS
+Python, JavaScript, TypeScript, React, Node.js, FastAPI, PostgreSQL, Redis, Docker, Kubernetes, AWS (EC2, S3, Lambda), Git, CI/CD, REST APIs, Agile/Scrum
+
+EDUCATION
+B.S. Computer Science — University of California, Berkeley (2019)
+
+CERTIFICATIONS
+- AWS Certified Solutions Architect - Associate

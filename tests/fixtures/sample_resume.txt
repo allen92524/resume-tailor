@@ -1,0 +1,41 @@
+Sarah Chen
+sarah.chen@email.com | (415) 555-0198 | Seattle, WA | linkedin.com/in/sarahchen | github.com/sarahchen
+
+PROFESSIONAL SUMMARY
+Full-stack software engineer with 6 years of experience designing and building scalable web applications, distributed systems, and data pipelines. Passionate about clean architecture, developer tooling, and mentoring.
+
+EXPERIENCE
+
+Staff Software Engineer — CloudScale Technologies
+Mar 2023 - Present
+- Architected a real-time event processing system handling 2M+ events/hour using Kafka and Python
+- Led migration of monolithic application to microservices, reducing deployment cycles from weekly to daily
+- Designed multi-tenant data isolation layer supporting 500+ enterprise customers
+- Established engineering standards and conducted architecture reviews for a team of 12 engineers
+- Reduced infrastructure costs by 35% through container optimization and autoscaling improvements
+
+Senior Software Engineer — Nexus Software
+Aug 2020 - Feb 2023
+- Built and maintained a distributed task scheduling system processing 50K+ jobs daily
+- Implemented real-time analytics dashboard using React, GraphQL, and PostgreSQL
+- Optimized database queries reducing average API latency from 450ms to 120ms
+- Mentored 4 junior developers through structured onboarding and pair programming
+- Introduced automated integration testing, increasing deployment confidence and reducing rollbacks by 70%
+
+Software Engineer — BrightPath Labs
+Jun 2018 - Jul 2020
+- Developed RESTful APIs serving 100K+ daily active users using Django and PostgreSQL
+- Built automated CI/CD pipeline with Jenkins, reducing release cycle from 2 weeks to 2 days
+- Implemented feature flagging system enabling safe rollouts for 15+ concurrent experiments
+- Collaborated with data science team to deploy ML model serving infrastructure
+
+SKILLS
+Python, Go, TypeScript, React, Node.js, Django, FastAPI, PostgreSQL, Redis, MongoDB, Kafka, Docker, Kubernetes, AWS (EC2, ECS, Lambda, S3, DynamoDB), Terraform, GraphQL, gRPC, CI/CD, Git, Agile/Scrum
+
+EDUCATION
+M.S. Computer Science — University of Washington (2018)
+B.S. Computer Engineering — UC San Diego (2016)
+
+CERTIFICATIONS
+- AWS Certified Solutions Architect - Professional
+- Certified Kubernetes Administrator (CKA)

@@ -1,0 +1,38 @@
+Senior Platform Engineer — Meridian Data Systems
+
+About Us:
+Meridian Data Systems is a Series C data infrastructure startup helping Fortune 500 companies build reliable, real-time data pipelines. Our platform processes over 10 billion events daily and is trusted by 200+ enterprises worldwide. We're looking for a Senior Platform Engineer to help scale our core infrastructure.
+
+What You'll Do:
+- Design, build, and maintain highly available distributed systems that power our data pipeline platform
+- Own end-to-end service reliability for critical path systems processing billions of events
+- Develop internal tooling and frameworks that improve developer productivity across the organization
+- Drive architectural decisions for new platform capabilities in collaboration with product and engineering leadership
+- Implement observability and monitoring solutions to ensure system health and performance
+- Participate in on-call rotation and lead incident response and post-mortem processes
+- Mentor engineers across the organization and contribute to our engineering culture
+
+Requirements:
+- 5+ years of professional software engineering experience with a focus on backend/infrastructure
+- Strong proficiency in Python and Go
+- Deep experience building and operating distributed systems at scale
+- Expert knowledge of SQL databases (PostgreSQL) and NoSQL stores (Redis, DynamoDB, or similar)
+- Hands-on experience with container orchestration (Kubernetes, Docker)
+- Solid understanding of cloud platforms, preferably AWS
+- Experience with message queuing and streaming systems (Kafka, Kinesis, or similar)
+- Strong problem-solving skills and ability to debug complex distributed system issues
+- Excellent communication skills and a collaborative mindset
+
+Nice to Have:
+- Experience with infrastructure-as-code tools (Terraform, Pulumi, CloudFormation)
+- Familiarity with service mesh technologies (Istio, Linkerd)
+- Contributions to open source projects
+- Experience with gRPC and protocol buffers
+- Background in data engineering or analytics infrastructure
+
+Benefits:
+- Competitive salary ($180K-$240K) plus equity
+- Remote-first with optional offices in SF, NYC, and Seattle
+- Unlimited PTO, 16 weeks parental leave
+- $5K annual learning and development budget
+- Health, dental, and vision insurance

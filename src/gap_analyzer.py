@@ -1,0 +1,39 @@
+"""Analyze gaps between a resume and job description using the Claude API."""
+
+import json
+import logging
+
+from .api import call_api, parse_json_response
+from .config import MODEL, MAX_TOKENS_GAP_ANALYSIS
+from .models import GapAnalysis, JDAnalysis
+from .prompts import GAP_ANALYSIS_SYSTEM, GAP_ANALYSIS_USER
+
+logger = logging.getLogger(__name__)
+
+
+def analyze_gaps(resume_text: str, jd_analysis: JDAnalysis) -> GapAnalysis:
+    """Compare resume against JD analysis to find gaps and strengths.
+
+    Returns a GapAnalysis with 'gaps' (list of GapEntry) and
+    'strengths' (list of strings).
+    """
+    logger.info("Running gap analysis")
+
+    response_text = call_api(
+        model=MODEL,
+        max_tokens=MAX_TOKENS_GAP_ANALYSIS,
+        system=GAP_ANALYSIS_SYSTEM,
+        user_content=GAP_ANALYSIS_USER.format(
+            resume_text=resume_text,
+            jd_analysis=json.dumps(jd_analysis.to_dict(), indent=2),
+        ),
+    )
+
+    data = parse_json_response(response_text)
+    result = GapAnalysis.from_dict(data)
+    logger.info(
+        "Gap analysis complete: %d gaps, %d strengths",
+        len(result.gaps),
+        len(result.strengths),
+    )
+    return result

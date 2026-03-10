@@ -1,0 +1,58 @@
+{
+  "job_title": "Senior Platform Engineer",
+  "company": "Meridian Data Systems",
+  "required_skills": [
+    "Python",
+    "Go",
+    "Distributed Systems",
+    "PostgreSQL",
+    "Redis",
+    "DynamoDB",
+    "Kubernetes",
+    "Docker",
+    "AWS",
+    "Kafka",
+    "Problem Solving",
+    "Communication"
+  ],
+  "preferred_skills": [
+    "Terraform",
+    "Service Mesh (Istio, Linkerd)",
+    "Open Source Contributions",
+    "gRPC",
+    "Protocol Buffers",
+    "Data Engineering"
+  ],
+  "key_responsibilities": [
+    "Design and maintain highly available distributed systems for data pipeline platform",
+    "Own end-to-end service reliability for critical path systems",
+    "Develop internal tooling and frameworks for developer productivity",
+    "Drive architectural decisions for new platform capabilities",
+    "Implement observability and monitoring solutions",
+    "Participate in on-call rotation and lead incident response",
+    "Mentor engineers and contribute to engineering culture"
+  ],
+  "keywords": [
+    "distributed systems",
+    "data pipeline",
+    "real-time",
+    "event processing",
+    "scalable",
+    "reliability",
+    "observability",
+    "monitoring",
+    "microservices",
+    "container orchestration",
+    "infrastructure",
+    "platform engineering"
+  ],
+  "experience_level": "senior",
+  "industry": "Data Infrastructure",
+  "culture_signals": [
+    "Remote-first",
+    "Learning and development focused",
+    "Collaborative mindset",
+    "Engineering culture",
+    "Mentorship valued"
+  ]
+}

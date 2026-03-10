@@ -1,0 +1,33 @@
+{
+  "gaps": [
+    {
+      "skill": "Go",
+      "question": "The role requires strong Go proficiency. Do you have any experience writing Go services or contributing to Go projects?"
+    },
+    {
+      "skill": "Service Mesh",
+      "question": "The JD mentions service mesh technologies like Istio or Linkerd. Have you worked with any service mesh tools?"
+    },
+    {
+      "skill": "Incident Response",
+      "question": "The role involves leading incident response and post-mortems. Can you describe your experience with on-call rotations or incident management?"
+    },
+    {
+      "skill": "Infrastructure as Code",
+      "question": "They prefer experience with Terraform or similar IaC tools. Have you used any infrastructure-as-code tools beyond what's on your resume?"
+    },
+    {
+      "skill": "Protocol Buffers",
+      "question": "The nice-to-have list includes gRPC and protocol buffers. Do you have experience with these technologies?"
+    }
+  ],
+  "strengths": [
+    "Strong Python proficiency with production-scale distributed systems experience",
+    "Extensive Kafka and event processing experience (2M+ events/hour)",
+    "Deep Kubernetes and container orchestration expertise (CKA certified)",
+    "Proven AWS experience across multiple services (EC2, ECS, Lambda, S3, DynamoDB)",
+    "Track record of mentoring engineers and establishing engineering standards",
+    "PostgreSQL and Redis expertise with demonstrated performance optimization",
+    "CI/CD and automation experience reducing deployment friction"
+  ]
+}

@@ -1,0 +1,11 @@
+services:
+  resume-tailor:
+    build: .
+    stdin_open: true
+    tty: true
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ~/.resume-tailor:/root/.resume-tailor
+      - ./output:/output
+    command: ["generate", "--format", "pdf", "--output", "/output/"]

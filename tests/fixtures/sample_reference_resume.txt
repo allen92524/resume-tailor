@@ -1,0 +1,42 @@
+Michael Torres
+michael.torres@email.com | (650) 555-0234 | San Francisco, CA | linkedin.com/in/michaeltorres
+
+PROFESSIONAL SUMMARY
+Platform engineering leader with 8 years of experience building and scaling distributed data infrastructure. Track record of designing systems that process billions of events daily with 99.99% uptime. Combines deep technical expertise with cross-functional leadership to deliver high-impact platform capabilities.
+
+EXPERIENCE
+
+Principal Platform Engineer — StreamCore Inc.
+Jan 2022 - Present
+- Architected next-generation event streaming platform processing 15B+ events/day with sub-100ms p99 latency
+- Led platform reliability initiative achieving 99.99% uptime across 30+ microservices, saving $2M annually in SLA penalties
+- Designed and implemented multi-region active-active deployment strategy, reducing disaster recovery time from 4 hours to 8 minutes
+- Drove adoption of infrastructure-as-code (Terraform) across 5 engineering teams, cutting provisioning time by 85%
+- Built self-service internal developer platform reducing new service onboarding from 2 weeks to 3 hours
+
+Senior Platform Engineer — DataVault Corp.
+Mar 2019 - Dec 2021
+- Owned and operated Kafka-based data ingestion pipeline processing 500M+ messages/day with zero data loss
+- Implemented comprehensive observability stack (Prometheus, Grafana, Jaeger) reducing mean time to detection by 60%
+- Migrated 200+ services from EC2 to Kubernetes, achieving 40% infrastructure cost reduction
+- Designed circuit breaker and rate limiting patterns adopted as company-wide standards
+- Mentored 6 engineers and led weekly architecture review sessions
+
+Software Engineer — QuickByte Technologies
+Jul 2016 - Feb 2019
+- Built distributed caching layer using Redis cluster supporting 100K+ concurrent connections
+- Developed gRPC-based service communication framework used by 15+ internal services
+- Implemented automated canary deployment pipeline, reducing failed deployments by 75%
+- Contributed to open-source Kubernetes operator for stateful workload management (500+ GitHub stars)
+
+SKILLS
+Go, Python, Rust, Kafka, Kubernetes, Docker, AWS (ECS, EKS, Lambda, DynamoDB, Kinesis), Terraform, PostgreSQL, Redis, gRPC, Protocol Buffers, Prometheus, Grafana, Istio, CI/CD, Infrastructure-as-Code, Distributed Systems Design
+
+EDUCATION
+M.S. Computer Science — Stanford University (2016)
+B.S. Computer Science — UC Berkeley (2014)
+
+CERTIFICATIONS
+- AWS Certified Solutions Architect - Professional
+- Certified Kubernetes Administrator (CKA)
+- Google Cloud Professional Cloud Architect

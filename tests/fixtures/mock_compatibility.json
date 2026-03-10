@@ -1,0 +1,23 @@
+{
+  "match_score": 78,
+  "strong_matches": [
+    "Python proficiency with 6+ years of production experience",
+    "Distributed systems design and operation at scale",
+    "Kafka-based event processing (2M+ events/hour)",
+    "Kubernetes and Docker expertise with CKA certification",
+    "AWS experience across core services",
+    "PostgreSQL and Redis database optimization",
+    "Engineering mentorship and team leadership"
+  ],
+  "addressable_gaps": [
+    "Go experience — candidate has TypeScript and Python which show multi-language capability; Go could be ramped up quickly",
+    "Service mesh tools — candidate has deep Kubernetes knowledge which is the foundation for service mesh adoption",
+    "Infrastructure-as-code — candidate lists Terraform in skills but limited detail in experience bullets"
+  ],
+  "missing": [
+    "No demonstrated gRPC or protocol buffer experience",
+    "No open source contributions mentioned"
+  ],
+  "recommendation": "Strong match at 78%. The candidate's distributed systems and Kafka experience directly align with the core role requirements. Recommend emphasizing the event processing platform work and Kubernetes expertise. The Go gap is addressable given the candidate's multi-language background.",
+  "proceed": true
+}

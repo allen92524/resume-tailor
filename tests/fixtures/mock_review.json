@@ -1,0 +1,57 @@
+{
+  "overall_score": 72,
+  "strengths": [
+    "Strong action verbs throughout experience bullets",
+    "Good quantification of achievements (2M+ events/hour, 500+ customers, 35% cost reduction)",
+    "Clear career progression from Engineer to Staff",
+    "Well-organized standard sections that are ATS-friendly",
+    "Technical skills section is comprehensive and relevant"
+  ],
+  "weaknesses": [
+    {
+      "section": "Professional Summary",
+      "issue": "Summary is generic and doesn't highlight unique value proposition or specific domain expertise",
+      "suggestion": "Lead with your strongest differentiator — e.g., 'Platform engineer specializing in real-time event processing systems at enterprise scale'"
+    },
+    {
+      "section": "Experience - CloudScale Technologies",
+      "issue": "Missing business impact metrics on the multi-tenant isolation work",
+      "suggestion": "Add customer satisfaction or uptime metrics if available, e.g., 'supporting 500+ enterprise customers with 99.99% isolation guarantee'"
+    },
+    {
+      "section": "Experience - BrightPath Labs",
+      "issue": "Bullets lack outcome/impact — 'Collaborated with data science team' doesn't show what was achieved",
+      "suggestion": "Rewrite to show impact: 'Deployed ML model serving infrastructure reducing inference latency from [X]ms to [Y]ms'"
+    },
+    {
+      "section": "Skills",
+      "issue": "Skills are listed flat without categorization, making it harder to scan",
+      "suggestion": "Consider grouping into categories: Languages, Frameworks, Infrastructure, Databases"
+    }
+  ],
+  "missing_keywords": [
+    "observability",
+    "monitoring",
+    "SLA",
+    "incident response",
+    "reliability engineering",
+    "data pipeline"
+  ],
+  "improved_bullets": [
+    {
+      "original": "Led migration of monolithic application to microservices, reducing deployment cycles from weekly to daily",
+      "improved": "Led architectural migration from monolith to microservices, accelerating deployment frequency from weekly to daily releases and improving system reliability by [X%]",
+      "has_placeholders": true
+    },
+    {
+      "original": "Collaborated with data science team to deploy ML model serving infrastructure",
+      "improved": "Deployed ML model serving infrastructure in collaboration with data science team, enabling real-time predictions for [number] models serving [number] requests/day",
+      "has_placeholders": true
+    },
+    {
+      "original": "Built full-stack features using React and Node.js for a SaaS analytics platform",
+      "improved": "Engineered full-stack analytics features using React and Node.js, driving [X%] increase in user engagement on the SaaS platform",
+      "has_placeholders": true
+    }
+  ]
+}
