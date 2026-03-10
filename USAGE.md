@@ -189,6 +189,45 @@ python src/main.py --profile wife profile restore
 - **Back up before reviews:** The `review` command can modify your base resume. Back up first if you want to compare versions.
 - **Multiple backups per day** overwrite each other (same date = same filename). If you need multiple snapshots in one day, manually rename the backup file.
 
+## Release Workflow
+
+The project uses semantic versioning (`MAJOR.MINOR.PATCH`) tracked in a `VERSION` file. Releases automatically update the VERSION file, the Helm `Chart.yaml`, create a commit, and tag it.
+
+### Bumping a version
+
+```bash
+make release-patch   # 1.2.1 -> 1.2.2 (bug fixes)
+make release-minor   # 1.2.2 -> 1.3.0 (new features)
+make release-major   # 1.3.0 -> 2.0.0 (breaking changes)
+```
+
+### Pushing a release
+
+```bash
+make release-push    # Push commits and tags to GitHub
+```
+
+### Full release example
+
+```bash
+# 1. Make sure all tests pass
+make test
+
+# 2. Bump the version
+make release-patch
+
+# 3. Push to GitHub
+make release-push
+```
+
+### What happens during a release
+
+1. Reads the current version from `VERSION`
+2. Bumps the appropriate segment (patch/minor/major)
+3. Updates `VERSION` and `helm/resume-tailor/Chart.yaml`
+4. Commits with message `release: vX.Y.Z`
+5. Creates a git tag `vX.Y.Z`
+
 ## Troubleshooting
 
 ### API key not set

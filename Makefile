@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run helm-install helm-uninstall helm-template clean
+.PHONY: help install dev-install test lint format run run-profile dry-run api docker-build docker-run helm-install helm-uninstall helm-template release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -60,6 +60,18 @@ helm-uninstall: ## Uninstall Helm chart from Kubernetes
 
 helm-template: ## Render Helm templates locally (dry-run)
 	helm template resume-tailor helm/resume-tailor
+
+release-patch: ## Bump patch version, commit, and tag
+	./scripts/bump-version.sh patch
+
+release-minor: ## Bump minor version, commit, and tag
+	./scripts/bump-version.sh minor
+
+release-major: ## Bump major version, commit, and tag
+	./scripts/bump-version.sh major
+
+release-push: ## Push commits and tags to GitHub
+	git push && git push --tags
 
 clean: ## Remove venv, pycache, and output files
 	rm -rf $(VENV)
