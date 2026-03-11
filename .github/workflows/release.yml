@@ -10,14 +10,13 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Skip version bump commits to avoid infinite loop
+    # Skip release commits to avoid infinite loop
     if: "!startsWith(github.event.head_commit.message, 'release:')"
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Determine version bump type
         id: bump
@@ -80,31 +79,44 @@ jobs:
         if: steps.bump.outputs.type == 'skip'
         run: echo "Commit does not require a version bump — skipping release."
 
-      - name: Configure git
-        if: steps.bump.outputs.type != 'skip'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump version
+      - name: Calculate new version
         if: steps.bump.outputs.type != 'skip'
         id: version
         run: |
-          bash scripts/bump-version.sh ${{ steps.bump.outputs.type }}
-          NEW_VERSION=$(tr -d '[:space:]' < VERSION)
-          echo "tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          # Get current version from the latest git tag
+          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || cat VERSION | tr -d '[:space:]')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
-      - name: Push commit and tag
+          BUMP_TYPE="${{ steps.bump.outputs.type }}"
+          case "$BUMP_TYPE" in
+            patch) PATCH=$((PATCH + 1)) ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          TAG="v${NEW_VERSION}"
+          echo "Bumping $BUMP_TYPE: $CURRENT_VERSION -> $NEW_VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag via GitHub API
         if: steps.bump.outputs.type != 'skip'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          git push origin main
-          git push origin ${{ steps.version.outputs.tag }}
+          TAG="${{ steps.version.outputs.tag }}"
+          SHA="${{ github.sha }}"
+          echo "Creating tag $TAG at commit $SHA"
+          gh api repos/${{ github.repository }}/git/refs \
+            -f ref="refs/tags/$TAG" \
+            -f sha="$SHA"
 
       - name: Create GitHub Release
         if: steps.bump.outputs.type != 'skip'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           gh release create ${{ steps.version.outputs.tag }} \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
