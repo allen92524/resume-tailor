@@ -33,6 +33,7 @@ from src.models import (
     GapAnalysis,
     CompatibilityAssessment,
     ResumeReview,
+    ReviewWeakness,
 )
 from src.resume_parser import collect_resume_text, validate_resume_content
 from src.jd_analyzer import analyze_jd, collect_jd_text
@@ -878,6 +879,54 @@ def generate(
     if output_path is None:
         output_path = prefs.get("output_path")
 
+    # Periodic baseline review prompt for returning users
+    if (
+        not dry_run
+        and prof.base_resume
+        and prof.applications_since_review >= 10
+    ):
+        click.echo(
+            click.style(
+                f"\nYou've generated {prof.applications_since_review} resumes since "
+                "your last baseline review.",
+                fg="yellow",
+                bold=True,
+            )
+        )
+        if click.confirm("Want to review your baseline resume?", default=False):
+            click.echo("Reviewing your baseline resume...")
+            try:
+                review_result = review_resume(prof.base_resume, model=model)
+                display_review(review_result)
+                review_result = _fill_review_placeholders(review_result)
+
+                if click.confirm(
+                    "Incorporate these suggestions?", default=False
+                ):
+                    all_skipped: list[str] = []
+                    for b in review_result.improved_bullets:
+                        all_skipped.extend(b.skipped_placeholders)
+
+                    click.echo("Improving your resume...")
+                    improved = improve_resume(
+                        prof.base_resume,
+                        review_result,
+                        skipped_placeholders=all_skipped or None,
+                        model=model,
+                    )
+                    improved = resolve_resume_placeholders(improved)
+                    prof.base_resume = improved
+                    prof.applications_since_review = 0
+                    save_profile(prof, pname)
+                    click.echo("Base resume updated.")
+                else:
+                    # Reset counter even if they decline
+                    prof.applications_since_review = 0
+                    save_profile(prof, pname)
+            except Exception as e:
+                logger.warning("Baseline review failed: %s", e)
+                click.echo(f"Warning: Review failed ({e}). Continuing.")
+
     click.echo("\n" + "=" * 50)
     click.echo("  Resume Tailor - AI-Powered Resume Generator")
     click.echo("=" * 50)
@@ -973,6 +1022,52 @@ def generate(
             if not click.confirm("Is this correct?", default=True):
                 click.echo("Please re-run and provide the correct resume.")
                 sys.exit(0)
+
+        # Returning user check: anything new since last application?
+        if has_profile_resume and not dry_run:
+            click.echo("\n--- Returning User Check ---")
+            new_input = click.prompt(
+                "Anything new since your last application? "
+                "New skills, projects, certifications? (Enter to skip)",
+                default="",
+                show_default=False,
+            ).strip()
+            if new_input:
+                # Update base_resume with new info via LLM
+                click.echo("Updating your baseline resume with new information...")
+                try:
+                    # Build a minimal review that tells the LLM to incorporate new info
+                    update_review = ResumeReview(
+                        overall_score=80,
+                        strengths=["Existing resume is solid"],
+                        weaknesses=[
+                            ReviewWeakness(
+                                section="General",
+                                issue="Missing recent experience",
+                                suggestion=f"Incorporate the following new information: {new_input}",
+                            )
+                        ],
+                    )
+                    updated = improve_resume(
+                        prof.base_resume, update_review, model=model
+                    )
+                    updated = resolve_resume_placeholders(updated)
+
+                    click.echo("\nUpdated resume preview (first 500 chars):")
+                    click.echo(updated[:500] + ("..." if len(updated) > 500 else ""))
+                    if click.confirm("Save this update to your profile?", default=True):
+                        resume_text = updated
+                        prof.base_resume = updated
+                        save_profile(prof, pname)
+                        click.echo("Profile updated.")
+                    else:
+                        click.echo("Keeping existing resume.")
+                except Exception as e:
+                    logger.warning("Failed to update resume: %s", e)
+                    click.echo(f"Warning: Could not update resume ({e}). Continuing with existing.")
+
+                # Save new info to experience bank
+                save_experience(prof, "recent_updates", new_input, pname)
 
         # Step 2: Reference Resume (Optional)
         click.echo("\n--- Step 2: Reference Resume (Optional) ---")
@@ -1398,11 +1493,13 @@ def generate(
                         click.echo(f"PDF conversion failed: {e}")
                     break
 
-    # Save to application history
+    # Save to application history and increment review counter
     company = jd_analysis.company
     role = jd_analysis.job_title
     for fp in filepaths:
         append_history(prof, company, role, match_score, fp, pname)
+    prof.applications_since_review += 1
+    save_profile(prof, pname)
 
     # Save preferences on first successful run (or update if flags were explicit)
     if not prefs.get("format"):
