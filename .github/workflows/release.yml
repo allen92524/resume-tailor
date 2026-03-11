@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Skip version bump commits to avoid infinite loop
+    if: "!startsWith(github.event.head_commit.message, 'release:')"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version bump type
+        id: bump
+        run: |
+          MSG="${{ github.event.head_commit.message }}"
+          FIRST_LINE=$(echo "$MSG" | head -n 1)
+
+          # Check for breaking change (major)
+          if echo "$MSG" | grep -q "BREAKING CHANGE" || echo "$FIRST_LINE" | grep -qE "^feat!:"; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$FIRST_LINE" | grep -qE "^feat:"; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          elif echo "$FIRST_LINE" | grep -qE "^fix:"; then
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=skip" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip non-release commits
+        if: steps.bump.outputs.type == 'skip'
+        run: echo "Commit does not require a version bump — skipping release."
+
+      - name: Configure git
+        if: steps.bump.outputs.type != 'skip'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        if: steps.bump.outputs.type != 'skip'
+        id: version
+        run: |
+          bash scripts/bump-version.sh ${{ steps.bump.outputs.type }}
+          NEW_VERSION=$(tr -d '[:space:]' < VERSION)
+          echo "tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Push commit and tag
+        if: steps.bump.outputs.type != 'skip'
+        run: |
+          git push origin main
+          git push origin ${{ steps.version.outputs.tag }}
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.type != 'skip'
+        run: |
+          gh release create ${{ steps.version.outputs.tag }} \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
