@@ -307,4 +307,4 @@ make format        # 格式化代码
 
 ## 许可证
 
-MIT
+本项目基于 [MIT 许可证](LICENSE) 开源。
