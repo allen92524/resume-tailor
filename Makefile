@@ -120,17 +120,17 @@ argocd-setup: ## Create API key secret and apply ArgoCD application
 argocd-status: ## Show ArgoCD application sync status
 	@kubectl get application resume-tailor -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null && echo || argocd app get resume-tailor --refresh 2>/dev/null || echo "Could not fetch status. Ensure ArgoCD is installed and the application exists."
 
-release-patch: ## Bump patch version, commit, and tag
+release-patch: ## Create patch version tag
 	./scripts/bump-version.sh patch
 
-release-minor: ## Bump minor version, commit, and tag
+release-minor: ## Create minor version tag
 	./scripts/bump-version.sh minor
 
-release-major: ## Bump major version, commit, and tag
+release-major: ## Create major version tag
 	./scripts/bump-version.sh major
 
-release-push: ## Push commits and tags to GitHub
-	git push && git push --tags
+release-push: ## Push tags to GitHub
+	git push --tags
 
 clean: ## Remove venv, pycache, and output files
 	rm -rf $(VENV)

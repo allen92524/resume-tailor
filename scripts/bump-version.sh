@@ -3,11 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VERSION_FILE="$PROJECT_ROOT/VERSION"
-CHART_FILE="$PROJECT_ROOT/helm/resume-tailor/Chart.yaml"
 
 usage() {
     echo "Usage: $0 <patch|minor|major>"
+    echo ""
+    echo "Creates a version tag based on the latest git tag."
+    echo "No files are modified — versioning is tag-only."
     exit 1
 }
 
@@ -18,8 +19,10 @@ if [[ "$BUMP_TYPE" != "patch" && "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "maj
     usage
 fi
 
-# Read current version
-CURRENT_VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
+cd "$PROJECT_ROOT"
+
+# Get current version from the latest git tag, fall back to VERSION file
+CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || cat VERSION | tr -d '[:space:]')
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
 # Bump
@@ -30,25 +33,11 @@ case "$BUMP_TYPE" in
 esac
 
 NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+TAG="v$NEW_VERSION"
 echo "Bumping $BUMP_TYPE: $CURRENT_VERSION -> $NEW_VERSION"
 
-# Update VERSION file
-echo "$NEW_VERSION" > "$VERSION_FILE"
+# Create annotated tag on current HEAD
+git tag -a "$TAG" -m "release: $TAG"
 
-# Update Chart.yaml version (portable: works on both GNU sed and macOS BSD sed)
-if sed --version >/dev/null 2>&1; then
-    # GNU sed
-    sed -i "s/^version: .*/version: $NEW_VERSION/" "$CHART_FILE"
-else
-    # BSD sed (macOS)
-    sed -i '' "s/^version: .*/version: $NEW_VERSION/" "$CHART_FILE"
-fi
-
-# Commit and tag
-cd "$PROJECT_ROOT"
-git add VERSION helm/resume-tailor/Chart.yaml
-git commit -m "release: v$NEW_VERSION"
-git tag "v$NEW_VERSION"
-
-echo "Released v$NEW_VERSION"
-echo "Run 'make release-push' to push to GitHub."
+echo "Created tag $TAG"
+echo "Run 'git push origin $TAG' to push to GitHub."
