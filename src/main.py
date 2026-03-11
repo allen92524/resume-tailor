@@ -973,6 +973,49 @@ def generate(
                 logger.warning("Baseline review failed: %s", e)
                 click.echo(f"Warning: Review failed ({e}). Continuing.")
 
+    # Experience bank review — prompt after every 10 applications
+    if (
+        not dry_run
+        and prof.experience_bank
+        and prof.applications_since_review >= 10
+    ):
+        click.echo(
+            click.style(
+                "\nTime for a quick experience bank review — some answers might be outdated.",
+                fg="yellow",
+            )
+        )
+        if click.confirm("Review your saved answers?", default=False):
+            keys_to_delete: list[str] = []
+            for skill, answer in list(prof.experience_bank.items()):
+                preview = answer[:80] + "..." if len(answer) > 80 else answer
+                click.echo(f"\n  {skill}: {preview}")
+                action = click.prompt(
+                    "    [Enter] Keep  |  [u] Update  |  [d] Delete",
+                    default="",
+                    show_default=False,
+                ).strip().lower()
+                if action == "d":
+                    keys_to_delete.append(skill)
+                    click.echo("    Deleted.")
+                elif action == "u":
+                    new_answer = click.prompt(
+                        "    New answer",
+                        default="",
+                        show_default=False,
+                    ).strip()
+                    if new_answer:
+                        prof.experience_bank[skill] = new_answer
+                        click.echo("    Updated.")
+            for key in keys_to_delete:
+                del prof.experience_bank[key]
+            if keys_to_delete or any(
+                prof.experience_bank.get(k) != v
+                for k, v in list(prof.experience_bank.items())
+            ):
+                save_profile(prof, pname)
+                click.echo("Experience bank updated.")
+
     click.echo("\n" + "=" * 50)
     click.echo("  Resume Tailor - AI-Powered Resume Generator")
     click.echo("=" * 50)
