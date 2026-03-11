@@ -154,6 +154,7 @@ class ResumeContent:
 class GapEntry:
     skill: str = ""
     question: str = ""
+    adjacent_skills: list[str] = field(default_factory=list)
 
 
 @dataclass

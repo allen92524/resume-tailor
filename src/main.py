@@ -1279,7 +1279,7 @@ def generate(
                 for s in gap_result.strengths:
                     click.echo(f"  - {s}")
 
-            # Ask gap questions (with experience bank lookup)
+            # Ask gap questions (with experience bank lookup + smart follow-up)
             gap_answers: list[str] = []
             if gap_result.gaps:
                 click.echo(
@@ -1346,6 +1346,23 @@ def generate(
                         if answer.strip():
                             gap_answers.append(f"{skill}: {answer.strip()}")
                             save_experience(prof, skill, answer.strip(), pname)
+                        elif hasattr(gap, "adjacent_skills") and gap.adjacent_skills:
+                            # Smart follow-up: suggest adjacent skills
+                            adjacent = ", ".join(gap.adjacent_skills)
+                            click.echo(
+                                f"    Even related experience counts. "
+                                f"For example: {adjacent}."
+                            )
+                            followup = click.prompt(
+                                "    Have you done anything like that?",
+                                default="",
+                                show_default=False,
+                            )
+                            if followup.strip():
+                                gap_answers.append(f"{skill}: {followup.strip()}")
+                                save_experience(
+                                    prof, skill, followup.strip(), pname
+                                )
 
             # Generic follow-up questions
             click.echo("\n--- Additional Questions ---")
