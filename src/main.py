@@ -168,6 +168,34 @@ def _summarize_jd(text: str) -> dict:
     }
 
 
+def _capture_writing_preference(
+    prof, feedback: str, pname: str = DEFAULT_PROFILE
+) -> None:
+    """Extract and save writing preferences from user feedback."""
+    # Common patterns to detect
+    pref_patterns = {
+        "bullet_length": ["shorter", "longer", "concise", "brief", "detailed"],
+        "tone": ["formal", "casual", "conversational", "professional", "technical"],
+        "verb_avoidance": ["spearheaded", "leveraged", "synergized", "utilized"],
+    }
+    feedback_lower = feedback.lower()
+
+    for category, keywords in pref_patterns.items():
+        for kw in keywords:
+            if kw in feedback_lower:
+                prof.writing_preferences[category] = feedback
+                save_profile(prof, pname)
+                click.echo(
+                    click.style("    Noted: saved as writing preference.", fg="green")
+                )
+                return
+
+    # If no pattern matched, save as general preference
+    prof.writing_preferences["general"] = feedback
+    save_profile(prof, pname)
+    click.echo(click.style("    Noted: saved as writing preference.", fg="green"))
+
+
 def _fill_placeholders_in_text(
     text: str,
     show_context: bool = True,
@@ -1506,6 +1534,45 @@ def generate(
                 sys.exit(1)
 
     click.echo("Resume content generated.")
+
+    # Step 8b: Section-by-section review
+    if not dry_run:
+        click.echo("\n--- Review Generated Resume ---")
+
+        # Show summary
+        if resume_data.summary:
+            click.echo(click.style("\n  Summary:", bold=True))
+            click.echo(f"    {resume_data.summary}")
+            feedback = click.prompt(
+                "    Looks good? (Enter to accept, or type feedback)",
+                default="",
+                show_default=False,
+            ).strip()
+            if feedback:
+                _capture_writing_preference(prof, feedback, pname)
+
+        # Show experience
+        for exp in resume_data.experience:
+            click.echo(click.style(f"\n  {exp.title} — {exp.company}", bold=True))
+            click.echo(f"    {exp.dates}")
+            for i, bullet in enumerate(exp.bullets):
+                click.echo(f"    - {bullet}")
+
+        exp_feedback = click.prompt(
+            "\n    Experience looks good? (Enter to accept, or type feedback)",
+            default="",
+            show_default=False,
+        ).strip()
+        if exp_feedback:
+            _capture_writing_preference(prof, exp_feedback, pname)
+
+        # Show skills
+        if resume_data.skills:
+            click.echo(click.style("\n  Skills:", bold=True))
+            for skill in resume_data.skills:
+                click.echo(f"    {skill}")
+
+        click.echo("")
 
     # Step 9: Output
     formats = [output_format.lower()]
