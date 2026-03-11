@@ -155,12 +155,19 @@ def create_profile(
 
 def _ask_weakness_questions(
     review: "ResumeReview",
+    model: str = DEFAULT_MODEL,
 ) -> tuple[dict[str, str], list[str]]:
-    """Walk through each weakness and ask the user a targeted question.
+    """Walk through each weakness with conversational Q&A.
+
+    Uses the LLM-driven conversational engine to ask follow-ups for vague
+    answers and generate per-weakness bullet previews for confirmation.
 
     Returns (answers_dict, skipped_placeholder_descriptions).
-    answers_dict maps weakness descriptions to user answers for use in improvement.
+    answers_dict maps weakness descriptions to user answers (or confirmed
+    improved bullets) for use in improvement.
     """
+    from .conversation import conversational_qa, generate_improved_bullet, confirm_bullet
+
     answers: dict[str, str] = {}
     all_skipped: list[str] = []
 
@@ -176,21 +183,55 @@ def _ask_weakness_questions(
     )
     click.echo("Answer each question or press Enter to skip.\n")
 
+    # Build a map from weakness issue to matching improved bullet text
+    bullet_map: dict[str, str] = {}
+    for b in review.improved_bullets:
+        # Try to match bullets to weaknesses by checking if the original
+        # bullet text appears in any weakness suggestion
+        for w in review.weaknesses:
+            if b.original and b.original.lower() in w.suggestion.lower():
+                bullet_map[w.issue] = b.original
+                break
+
     for w in review.weaknesses:
         section_label = f"[{w.section}]" if w.section != "General" else ""
         click.echo(click.style(f"  {section_label} {w.issue}", bold=True))
 
-        # Build a simple, concrete question with an example
-        question = w.suggestion
-        answer = click.prompt(
-            f"    {question}\n    (e.g. specific numbers, tools, or details)",
-            default="",
-            show_default=False,
-        ).strip()
+        bullet_text = bullet_map.get(w.issue, "")
+
+        answer = conversational_qa(
+            context_type="resume weakness",
+            context_description=w.issue,
+            initial_question=f"{w.suggestion}\n    (e.g. specific numbers, tools, or details)",
+            bullet_text=bullet_text,
+            model=model,
+        )
 
         if answer:
-            answers[w.issue] = answer
-            click.echo(click.style("    Saved.", fg="green"))
+            # Generate an improved bullet preview if we have a matching bullet
+            if bullet_text:
+                try:
+                    improved = generate_improved_bullet(
+                        original_bullet=bullet_text,
+                        weakness_context=w.issue,
+                        user_answers=answer,
+                        model=model,
+                    )
+                    confirmed = confirm_bullet(improved)
+                    if confirmed:
+                        answers[w.issue] = confirmed
+                        click.echo(click.style("    Saved.", fg="green"))
+                    else:
+                        # User rejected — still save raw answer
+                        answers[w.issue] = answer
+                        click.echo(click.style("    Using your raw answer.", fg="yellow"))
+                except Exception:
+                    logger.debug("Bullet improvement failed, using raw answer")
+                    answers[w.issue] = answer
+                    click.echo(click.style("    Saved.", fg="green"))
+            else:
+                answers[w.issue] = answer
+                click.echo(click.style("    Saved.", fg="green"))
         else:
             click.echo("    Skipped.")
         click.echo("")
@@ -242,7 +283,7 @@ def first_run_setup(
         display_review(review)
 
         # Walk through each weakness with targeted questions
-        answers, all_skipped = _ask_weakness_questions(review)
+        answers, all_skipped = _ask_weakness_questions(review, model=model)
 
         if answers:
             # Build improvement instructions from user answers

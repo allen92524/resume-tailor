@@ -103,3 +103,13 @@ RESUME_IMPROVE_USER = _ri[1]
 _ce = _load("contact_extraction.md")
 CONTACT_EXTRACTION_SYSTEM = _ce[0]
 CONTACT_EXTRACTION_USER = _ce[1]
+
+# Conversational Follow-up
+_cf = _load("conversational_followup.md")
+CONVERSATIONAL_FOLLOWUP_SYSTEM = _cf[0]
+CONVERSATIONAL_FOLLOWUP_USER = _cf[1]
+
+# Single Bullet Improvement
+_bi = _load("bullet_improve_single.md")
+BULLET_IMPROVE_SINGLE_SYSTEM = _bi[0]
+BULLET_IMPROVE_SINGLE_USER = _bi[1]

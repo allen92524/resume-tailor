@@ -681,7 +681,7 @@ def review(ctx, model):
     # Walk through each weakness with targeted questions
     from src.profile import _ask_weakness_questions
 
-    answers, all_skipped = _ask_weakness_questions(review_result)
+    answers, all_skipped = _ask_weakness_questions(review_result, model=model)
 
     if answers:
         answer_context = "\n".join(
@@ -1202,7 +1202,7 @@ def generate(
                 display_review(review_result)
 
                 # Walk through each weakness with targeted questions
-                answers, all_skipped = _ask_weakness_questions(review_result)
+                answers, all_skipped = _ask_weakness_questions(review_result, model=model)
 
                 if answers:
                     answer_context = "\n".join(
@@ -1350,9 +1350,11 @@ def generate(
                 for s in gap_result.strengths:
                     click.echo(f"  - {s}")
 
-            # Ask gap questions (with experience bank lookup + smart follow-up)
+            # Ask gap questions (with experience bank lookup + conversational follow-up)
             gap_answers: list[str] = []
             if gap_result.gaps:
+                from src.conversation import conversational_qa
+
                 click.echo(
                     "\nI have a few questions based on gaps between your resume and the JD."
                     "\nAnswer each one, or press Enter to skip.\n"
@@ -1398,42 +1400,28 @@ def generate(
                         if choice == "s":
                             pass  # skip — don't include this skill
                         elif choice == "u":
-                            answer = click.prompt(
-                                f"    {gap.question}",
-                                default="",
-                                show_default=False,
+                            answer = conversational_qa(
+                                context_type="skill gap",
+                                context_description=f"{skill}: {gap.question}",
+                                initial_question=gap.question,
+                                model=model,
                             )
-                            if answer.strip():
-                                gap_answers.append(f"{skill}: {answer.strip()}")
-                                save_experience(prof, skill, answer.strip(), pname)
+                            if answer:
+                                gap_answers.append(f"{skill}: {answer}")
+                                save_experience(prof, skill, answer, pname)
                         else:
                             gap_answers.append(f"{skill}: {saved}")
                     else:
-                        answer = click.prompt(
-                            f"  {gap.question}",
-                            default="",
-                            show_default=False,
+                        click.echo(f"\n  {skill}:")
+                        answer = conversational_qa(
+                            context_type="skill gap",
+                            context_description=f"{skill}: {gap.question}",
+                            initial_question=gap.question,
+                            model=model,
                         )
-                        if answer.strip():
-                            gap_answers.append(f"{skill}: {answer.strip()}")
-                            save_experience(prof, skill, answer.strip(), pname)
-                        elif hasattr(gap, "adjacent_skills") and gap.adjacent_skills:
-                            # Smart follow-up: suggest adjacent skills
-                            adjacent = ", ".join(gap.adjacent_skills)
-                            click.echo(
-                                f"    Even related experience counts. "
-                                f"For example: {adjacent}."
-                            )
-                            followup = click.prompt(
-                                "    Have you done anything like that?",
-                                default="",
-                                show_default=False,
-                            )
-                            if followup.strip():
-                                gap_answers.append(f"{skill}: {followup.strip()}")
-                                save_experience(
-                                    prof, skill, followup.strip(), pname
-                                )
+                        if answer:
+                            gap_answers.append(f"{skill}: {answer}")
+                            save_experience(prof, skill, answer, pname)
 
             # Generic follow-up questions
             click.echo("\n--- Additional Questions ---")

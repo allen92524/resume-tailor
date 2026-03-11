@@ -43,18 +43,25 @@ def call_api(
     max_tokens: int,
     system: str,
     user_content: str,
+    messages: list[dict] | None = None,
 ) -> str:
     """Make a Claude API call with automatic retry on transient errors.
+
+    If *messages* is provided, it is used directly instead of building
+    a single-turn message from *user_content*.
 
     Returns the text content of the first response block.
     """
     logger.debug("API call: model=%s, max_tokens=%d", model, max_tokens)
     with track_claude_api_call(model) as span:
         client = anthropic.Anthropic()
+        msg_list = messages if messages is not None else [
+            {"role": "user", "content": user_content}
+        ]
         message = client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            messages=[{"role": "user", "content": user_content}],
+            messages=msg_list,
             system=system,
         )
         text = message.content[0].text

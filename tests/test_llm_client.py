@@ -61,6 +61,7 @@ class TestCallLlmClaude:
             max_tokens=100,
             system="You are helpful.",
             user_content="Hello",
+            messages=None,
         )
 
     @patch("src.api.call_api")

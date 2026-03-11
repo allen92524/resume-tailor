@@ -288,21 +288,29 @@ def _call_ollama(
     model_name: str,
     system: str,
     user_content: str,
+    messages: list[dict] | None = None,
     base_url: str = OLLAMA_BASE_URL,
 ) -> str:
     """Call the Ollama REST API with retry logic and elapsed-time progress.
+
+    If *messages* is provided, it is prepended with the system message and
+    used directly instead of building a single-turn message from *user_content*.
 
     Retries up to OLLAMA_RETRY_ATTEMPTS times on connection errors, timeouts,
     and response length violations. Enforces a hard timeout of
     OLLAMA_HARD_TIMEOUT seconds per call.
     """
     url = f"{base_url}/api/chat"
-    payload = {
-        "model": model_name,
-        "messages": [
+    if messages is not None:
+        msg_list = [{"role": "system", "content": system}] + messages
+    else:
+        msg_list = [
             {"role": "system", "content": system},
             {"role": "user", "content": user_content},
-        ],
+        ]
+    payload = {
+        "model": model_name,
+        "messages": msg_list,
         "stream": False,
     }
 
@@ -543,15 +551,23 @@ def _normalize_resume_content(data: dict) -> dict:
 def call_llm(
     *,
     system: str,
-    user_content: str,
+    user_content: str = "",
+    messages: list[dict] | None = None,
     model: str = DEFAULT_MODEL,
     max_tokens: int = 4096,
+    purpose: str = "",
 ) -> str:
     """Make an LLM call using either Claude API or Ollama.
+
+    If *messages* is provided, it is passed directly for multi-turn
+    conversations instead of building from *user_content*.
 
     If model starts with 'ollama:', routes to the local Ollama instance.
     Otherwise, uses the Anthropic Claude API via call_api().
     """
+    model_label = get_ollama_model_name(model) if is_ollama_model(model) else model
+    if purpose:
+        click.echo(f"Calling {model_label} for {purpose}...")
     if is_ollama_model(model):
         model_name = get_ollama_model_name(model)
         logger.info("Using Ollama model: %s", model_name)
@@ -560,6 +576,7 @@ def call_llm(
             model_name=model_name,
             system=system,
             user_content=user_content,
+            messages=messages,
         )
     else:
         # Use existing Claude API with retry logic
@@ -572,4 +589,5 @@ def call_llm(
             max_tokens=max_tokens,
             system=system,
             user_content=user_content,
+            messages=messages,
         )

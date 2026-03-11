@@ -32,6 +32,7 @@ def assess_compatibility(
             resume_text=resume_text,
             jd_analysis=json.dumps(jd_analysis.to_dict(), indent=2),
         ),
+        purpose="compatibility assessment",
     )
 
     try:

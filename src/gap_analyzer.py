@@ -30,6 +30,7 @@ def analyze_gaps(
             resume_text=resume_text,
             jd_analysis=json.dumps(jd_analysis.to_dict(), indent=2),
         ),
+        purpose="gap analysis",
     )
 
     try:
