@@ -21,20 +21,60 @@ jobs:
 
       - name: Determine version bump type
         id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MSG="${{ github.event.head_commit.message }}"
-          FIRST_LINE=$(echo "$MSG" | head -n 1)
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
+          BUMP="skip"
 
-          # Check for breaking change (major)
-          if echo "$MSG" | grep -q "BREAKING CHANGE" || echo "$FIRST_LINE" | grep -qE "^feat!:"; then
-            echo "type=major" >> "$GITHUB_OUTPUT"
-          elif echo "$FIRST_LINE" | grep -qE "^feat:"; then
-            echo "type=minor" >> "$GITHUB_OUTPUT"
-          elif echo "$FIRST_LINE" | grep -qE "^fix:"; then
-            echo "type=patch" >> "$GITHUB_OUTPUT"
-          else
-            echo "type=skip" >> "$GITHUB_OUTPUT"
+          # 1. Check the head commit message itself (works for squash merges)
+          if echo "$COMMIT_MSG" | grep -q "BREAKING CHANGE" || echo "$FIRST_LINE" | grep -qE "^feat!:"; then
+            BUMP="major"
+          elif echo "$FIRST_LINE" | grep -qE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          elif echo "$FIRST_LINE" | grep -qE "^fix(\(.+\))?:"; then
+            BUMP="patch"
           fi
+
+          # 2. If no match yet, extract PR number and check PR title + commits
+          if [ "$BUMP" = "skip" ]; then
+            PR_NUM=$(echo "$FIRST_LINE" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
+
+            if [ -n "$PR_NUM" ]; then
+              echo "Checking PR #$PR_NUM for conventional commits..."
+
+              # Check PR title
+              PR_TITLE=$(gh pr view "$PR_NUM" --json title --jq '.title' 2>/dev/null || true)
+              echo "PR title: $PR_TITLE"
+
+              if echo "$PR_TITLE" | grep -qE "BREAKING CHANGE" || echo "$PR_TITLE" | grep -qE "^feat!:"; then
+                BUMP="major"
+              elif echo "$PR_TITLE" | grep -qE "^feat(\(.+\))?:"; then
+                BUMP="minor"
+              elif echo "$PR_TITLE" | grep -qE "^fix(\(.+\))?:"; then
+                BUMP="patch"
+              fi
+
+              # Check individual PR commits if still no match
+              if [ "$BUMP" = "skip" ]; then
+                COMMITS=$(gh pr view "$PR_NUM" --json commits --jq '.commits[].messageHeadline' 2>/dev/null || true)
+                echo "PR commits:"
+                echo "$COMMITS"
+
+                if echo "$COMMITS" | grep -qE "BREAKING CHANGE" || echo "$COMMITS" | grep -qE "^feat!:"; then
+                  BUMP="major"
+                elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+                  BUMP="minor"
+                elif echo "$COMMITS" | grep -qE "^fix(\(.+\))?:"; then
+                  BUMP="patch"
+                fi
+              fi
+            fi
+          fi
+
+          echo "Determined bump type: $BUMP"
+          echo "type=$BUMP" >> "$GITHUB_OUTPUT"
 
       - name: Skip non-release commits
         if: steps.bump.outputs.type == 'skip'
