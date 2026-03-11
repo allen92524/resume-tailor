@@ -650,16 +650,24 @@ def review(ctx, model):
 
     display_review(review_result)
 
-    # Let user fill in placeholder metrics before applying improvements
-    review_result = _fill_review_placeholders(review_result)
+    # Walk through each weakness with targeted questions
+    from src.profile import _ask_weakness_questions
 
-    if click.confirm("Would you like to incorporate these suggestions?", default=False):
-        # Collect skipped placeholder descriptions to avoid re-suggesting
-        all_skipped: list[str] = []
-        for b in review_result.improved_bullets:
-            all_skipped.extend(b.skipped_placeholders)
+    answers, all_skipped = _ask_weakness_questions(review_result)
 
-        click.echo("Improving your resume...")
+    if answers:
+        answer_context = "\n".join(
+            f"- {issue}: {answer}" for issue, answer in answers.items()
+        )
+        review_result.weaknesses.append(
+            ReviewWeakness(
+                section="User Provided",
+                issue="Additional context from user",
+                suggestion=f"Incorporate these details:\n{answer_context}",
+            )
+        )
+
+        click.echo("Improving your resume with your answers...")
         try:
             improved = improve_resume(
                 prof.base_resume,
@@ -674,9 +682,19 @@ def review(ctx, model):
 
         improved = resolve_resume_placeholders(improved)
 
-        prof.base_resume = improved
-        save_profile(prof, pname)
-        click.echo("Base resume updated and saved.")
+        click.echo("\nImproved resume preview:")
+        click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+        if click.confirm("Save this improved version?", default=True):
+            prof.base_resume = improved
+            prof.applications_since_review = 0
+            save_profile(prof, pname)
+            click.echo("Base resume updated and saved.")
+
+            # Save answers to experience bank
+            for issue, answer in answers.items():
+                save_experience(prof, issue, answer, pname)
+        else:
+            click.echo("Keeping existing resume.")
 
 
 # ---------------------------------------------------------------------------
@@ -1102,26 +1120,32 @@ def generate(
                         f"  Warning: Could not load reference resume ({e}). Skipping."
                     )
 
-        # Step 3: Resume Review (skip if profile already has a reviewed resume)
+        # Step 3: Resume Review with Q&A (skip if profile already has a reviewed resume)
         if not dry_run and not has_profile_resume:
             click.echo("\n--- Step 3: Resume Review ---")
             click.echo("Reviewing your resume...")
             try:
+                from src.profile import _ask_weakness_questions
+
                 review_result = review_resume(resume_text, model=model)
                 display_review(review_result)
 
-                # Let user fill in placeholder metrics before applying improvements
-                review_result = _fill_review_placeholders(review_result)
+                # Walk through each weakness with targeted questions
+                answers, all_skipped = _ask_weakness_questions(review_result)
 
-                if click.confirm(
-                    "Would you like to incorporate these suggestions?", default=False
-                ):
-                    # Collect skipped placeholder descriptions to avoid re-suggesting
-                    all_skipped: list[str] = []
-                    for b in review_result.improved_bullets:
-                        all_skipped.extend(b.skipped_placeholders)
+                if answers:
+                    answer_context = "\n".join(
+                        f"- {issue}: {answer}" for issue, answer in answers.items()
+                    )
+                    review_result.weaknesses.append(
+                        ReviewWeakness(
+                            section="User Provided",
+                            issue="Additional context from user",
+                            suggestion=f"Incorporate these details:\n{answer_context}",
+                        )
+                    )
 
-                    click.echo("Improving your resume...")
+                    click.echo("Improving your resume with your answers...")
                     try:
                         improved = improve_resume(
                             resume_text,
@@ -1136,11 +1160,19 @@ def generate(
 
                     if improved:
                         improved = resolve_resume_placeholders(improved)
+                        click.echo("\nImproved resume preview:")
+                        click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+                        if click.confirm("Save this improved version?", default=True):
+                            resume_text = improved
+                            prof.base_resume = improved
+                            save_profile(prof, pname)
+                            click.echo("Base resume updated and saved.")
+                        else:
+                            click.echo("Keeping original resume.")
 
-                        resume_text = improved
-                        prof.base_resume = improved
-                        save_profile(prof, pname)
-                        click.echo("Base resume updated and saved.")
+                    # Save answers to experience bank
+                    for issue, answer in answers.items():
+                        save_experience(prof, issue, answer, pname)
             except Exception as e:
                 logger.warning("Resume review failed: %s", e)
                 click.echo(f"Warning: Resume review failed ({e}). Continuing.")

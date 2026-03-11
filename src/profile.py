@@ -26,7 +26,7 @@ from .config import (
     get_profile_path,
 )
 from .llm_client import call_llm
-from .models import Profile, Identity
+from .models import Profile, Identity, ResumeReview
 from .prompts import CONTACT_EXTRACTION_SYSTEM, CONTACT_EXTRACTION_USER
 
 logger = logging.getLogger(__name__)
@@ -153,6 +153,58 @@ def create_profile(
     return profile
 
 
+def _ask_weakness_questions(
+    review: "ResumeReview",
+) -> tuple[dict[str, str], list[str]]:
+    """Walk through each weakness and ask the user a targeted question.
+
+    Returns (answers_dict, skipped_placeholder_descriptions).
+    answers_dict maps weakness descriptions to user answers for use in improvement.
+    """
+    answers: dict[str, str] = {}
+    all_skipped: list[str] = []
+
+    if not review.weaknesses:
+        return answers, all_skipped
+
+    click.echo(
+        click.style(
+            "\nLet's improve your resume. I'll ask about each area that could be stronger.",
+            fg="cyan",
+            bold=True,
+        )
+    )
+    click.echo("Answer each question or press Enter to skip.\n")
+
+    for w in review.weaknesses:
+        section_label = f"[{w.section}]" if w.section != "General" else ""
+        click.echo(click.style(f"  {section_label} {w.issue}", bold=True))
+
+        # Build a simple, concrete question with an example
+        question = w.suggestion
+        answer = click.prompt(
+            f"    {question}\n    (e.g. specific numbers, tools, or details)",
+            default="",
+            show_default=False,
+        ).strip()
+
+        if answer:
+            answers[w.issue] = answer
+            click.echo(click.style("    Saved.", fg="green"))
+        else:
+            click.echo("    Skipped.")
+        click.echo("")
+
+    # Also handle improved bullet placeholders
+    from src.main import _fill_review_placeholders  # noqa: E402
+
+    review = _fill_review_placeholders(review)
+    for b in review.improved_bullets:
+        all_skipped.extend(b.skipped_placeholders)
+
+    return answers, all_skipped
+
+
 def first_run_setup(
     profile_name: str = DEFAULT_PROFILE, model: str = DEFAULT_MODEL
 ) -> Profile:
@@ -189,22 +241,26 @@ def first_run_setup(
         review = review_resume(resume_text, model=model)
         display_review(review)
 
-        # Let user fill in placeholder metrics in suggested bullets
-        # Lazy import to avoid circular dependency (main imports profile)
-        from src.main import _fill_review_placeholders  # noqa: E402
+        # Walk through each weakness with targeted questions
+        answers, all_skipped = _ask_weakness_questions(review)
 
-        review = _fill_review_placeholders(review)
+        if answers:
+            # Build improvement instructions from user answers
+            answer_context = "\n".join(
+                f"- {issue}: {answer}" for issue, answer in answers.items()
+            )
+            # Add answers to the review weaknesses as concrete suggestions
+            from .models import ReviewWeakness
 
-        if click.confirm(
-            "Would you like to incorporate these suggestions into your base resume?",
-            default=False,
-        ):
-            # Collect skipped placeholder descriptions to avoid re-suggesting
-            all_skipped: list[str] = []
-            for b in review.improved_bullets:
-                all_skipped.extend(b.skipped_placeholders)
+            review.weaknesses.append(
+                ReviewWeakness(
+                    section="User Provided",
+                    issue="Additional context from user",
+                    suggestion=f"Incorporate these details:\n{answer_context}",
+                )
+            )
 
-            click.echo("Improving your resume...")
+            click.echo("Improving your resume with your answers...")
             resume_text = improve_resume(
                 resume_text,
                 review,
@@ -212,17 +268,46 @@ def first_run_setup(
                 model=model,
             )
             resume_text = resolve_resume_placeholders(resume_text)
-            click.echo("Resume improved.")
+
+            # Show the improved version and get confirmation
+            click.echo("\n" + "=" * 50)
+            click.echo("  Improved Resume Preview")
+            click.echo("=" * 50)
+            click.echo(resume_text)
+            click.echo("=" * 50)
+
+            if not click.confirm(
+                "Save this improved version as your base resume?", default=True
+            ):
+                click.echo("Keeping your original resume.")
+                resume_text = original_resume_text
+            else:
+                click.echo("Resume improved and saved.")
+        else:
+            click.echo("No changes requested. Keeping your original resume.")
+
+        # Save raw answers to experience bank for future reuse
+        experience_bank_entries: dict[str, str] = {}
+        for issue, answer in answers.items():
+            experience_bank_entries[issue] = answer
+
     except Exception as e:
         logger.warning("Resume review failed: %s", e)
         click.echo(f"Warning: Resume review failed ({e}). Continuing with original.")
+        experience_bank_entries = {}
 
-    return create_profile(
+    profile = create_profile(
         resume_text,
         profile_name,
         model=model,
         original_resume_text=original_resume_text,
     )
+
+    # Save answers to experience bank
+    for skill, answer in experience_bank_entries.items():
+        save_experience(profile, skill, answer, profile_name)
+
+    return profile
 
 
 
