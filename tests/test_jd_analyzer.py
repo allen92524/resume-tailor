@@ -3,8 +3,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
 from src.jd_analyzer import analyze_jd
 from src.models import JDAnalysis
 
@@ -38,10 +36,13 @@ class TestAnalyzeJD:
 
         assert result.job_title == "Senior Platform Engineer"
 
-    def test_json_parse_error(self, sample_jd):
+    def test_json_parse_fallback(self, sample_jd):
+        """When LLM returns unparseable text, returns JDAnalysis with defaults."""
         with patch("src.jd_analyzer.call_llm", return_value="This is not JSON at all"):
-            with pytest.raises(json.JSONDecodeError):
-                analyze_jd(sample_jd)
+            result = analyze_jd(sample_jd)
+
+        assert result.job_title == ""
+        assert result.required_skills == []
 
     def test_with_reference_resume(
         self, sample_jd, sample_reference_resume, mock_jd_analysis

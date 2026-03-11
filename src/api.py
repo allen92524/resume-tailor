@@ -2,8 +2,10 @@
 
 import json
 import logging
+import re
 
 import anthropic
+import json_repair
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -61,75 +63,118 @@ def call_api(
         return text
 
 
-def parse_json_response(text: str) -> dict:
+def parse_json_response(text: str, default: dict | None = None) -> dict:
     """Extract and parse JSON from an LLM response with resilient fallbacks.
 
     Tries in order:
-    1. Extract from ```json fences
-    2. Extract from ``` fences
-    3. Parse raw text as JSON
-    4. Extract first { ... } or [ ... ] block
-    5. Fix common issues (trailing commas, single quotes)
-    Raises json.JSONDecodeError if all attempts fail.
+    1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+    2. Parse stripped text as JSON
+    3. Extract first { ... } or [ ... ] block from original text
+    4. Repair malformed JSON using json-repair library
+    5. Use json.JSONDecoder().raw_decode() to extract first valid object
+    6. Return default (empty dict) instead of crashing
+
+    Args:
+        text: Raw LLM response text.
+        default: Value to return if all parsing fails. Defaults to {}.
+
+    Returns:
+        Parsed JSON as a dict (or list).
     """
-    import re
+    if default is None:
+        default = {}
 
     original = text
 
-    # Step 1-2: Try extracting from markdown code fences
-    if "```json" in text:
-        text = text.split("```json")[1].split("```")[0]
-    elif "```" in text:
-        text = text.split("```")[1].split("```")[0]
+    # Step 0: Strip non-JSON preamble (e.g. "Here's the JSON:", "Sure!", etc.)
+    text = _strip_preamble(text)
 
-    # Step 3: Try strict parse
-    try:
-        return json.loads(text.strip())
-    except json.JSONDecodeError as e:
-        # Step 3b: "Extra data" means valid JSON followed by trailing text —
-        # parse the first complete JSON object and ignore the rest.
-        if "Extra data" in str(e):
-            result, _ = json.JSONDecoder().raw_decode(text.strip())
-            return result
+    # Step 1: Strip markdown code fences
+    text = _strip_code_fences(text)
 
-    # Step 4: Try extracting the first JSON object/array from the raw text
-    # (handles cases where the model wraps JSON in prose)
+    # Step 2: Try strict parse on fence-stripped text
+    result = _try_parse(text.strip())
+    if result is not None:
+        return result
+
+    # Step 3: Try extracting the first JSON object/array from the raw text
     brace_match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", original)
     if brace_match:
         candidate = brace_match.group(1)
-        try:
-            return json.loads(candidate)
-        except json.JSONDecodeError as e:
-            if "Extra data" in str(e):
-                result, _ = json.JSONDecoder().raw_decode(candidate)
-                return result
-            # Step 5: Fix common local-model issues
-            fixed = _fix_json(candidate)
-            try:
-                return json.loads(fixed)
-            except json.JSONDecodeError as e2:
-                if "Extra data" in str(e2):
-                    result, _ = json.JSONDecoder().raw_decode(fixed)
-                    return result
+        result = _try_parse(candidate)
+        if result is not None:
+            return result
 
-    # Final: raise with the original text for debugging
+        # Step 4: Repair malformed JSON (trailing commas, single quotes, etc.)
+        try:
+            repaired = json_repair.repair_json(candidate, return_objects=False)
+            result = _try_parse(repaired)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+
+    # Step 5: Try json-repair on the full original text
     try:
-        return json.loads(original.strip())
+        repaired = json_repair.repair_json(original, return_objects=False)
+        result = _try_parse(repaired)
+        if result is not None:
+            return result
+    except Exception:
+        pass
+
+    # Step 6: Return default instead of crashing
+    logger.error(
+        "Failed to parse JSON from LLM response (length=%d). "
+        "Returning default empty result. Response preview: %.200s",
+        len(original),
+        original,
+    )
+    return default
+
+
+def _strip_preamble(text: str) -> str:
+    """Strip non-JSON preamble that local models often prepend.
+
+    Handles patterns like "Here's the JSON:", "Sure! Here is...",
+    "Certainly:", etc. Finds the first { or [ and discards everything before it.
+    """
+    stripped = text.lstrip()
+    # If it already starts with JSON, nothing to do
+    if stripped and stripped[0] in "{[":
+        return stripped
+    # Find the first JSON-starting character
+    for i, ch in enumerate(stripped):
+        if ch in "{[":
+            preamble = stripped[:i].rstrip()
+            if preamble:
+                logger.debug("Stripped preamble (%d chars): %.80s", len(preamble), preamble)
+            return stripped[i:]
+    # No JSON found — return as-is for downstream handling
+    return text
+
+
+def _strip_code_fences(text: str) -> str:
+    """Strip markdown code fences from LLM response text."""
+    if "```json" in text:
+        text = text.split("```json", 1)[1].split("```", 1)[0]
+    elif "```" in text:
+        text = text.split("```", 1)[1].split("```", 1)[0]
+    return text
+
+
+def _try_parse(text: str) -> dict | list | None:
+    """Try to parse text as JSON, handling 'Extra data' via raw_decode.
+
+    Returns the parsed result, or None if parsing fails.
+    """
+    try:
+        return json.loads(text)
     except json.JSONDecodeError as e:
         if "Extra data" in str(e):
-            result, _ = json.JSONDecoder().raw_decode(original.strip())
-            return result
-        raise
-
-
-def _fix_json(text: str) -> str:
-    """Attempt to fix common JSON issues from local models."""
-    import re
-
-    # Remove trailing commas before } or ]
-    text = re.sub(r",\s*([}\]])", r"\1", text)
-    # Replace single quotes with double quotes (but not inside strings with apostrophes)
-    # Only do this if there are no double quotes at all (clearly single-quote JSON)
-    if '"' not in text and "'" in text:
-        text = text.replace("'", '"')
-    return text
+            try:
+                result, _ = json.JSONDecoder().raw_decode(text.strip())
+                return result
+            except json.JSONDecodeError:
+                return None
+        return None

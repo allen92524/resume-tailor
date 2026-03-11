@@ -3,8 +3,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
 from src.gap_analyzer import analyze_gaps
 from src.models import JDAnalysis, GapAnalysis
 
@@ -47,9 +45,12 @@ class TestAnalyzeGaps:
 
         assert len(result.gaps) == 5
 
-    def test_json_parse_error(self, sample_resume, mock_jd_analysis):
+    def test_json_parse_fallback(self, sample_resume, mock_jd_analysis):
+        """When LLM returns unparseable text, returns GapAnalysis with defaults."""
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
         with patch("src.gap_analyzer.call_llm", return_value="invalid json response"):
-            with pytest.raises(json.JSONDecodeError):
-                analyze_gaps(sample_resume, jd)
+            result = analyze_gaps(sample_resume, jd)
+
+        assert result.gaps == []
+        assert result.strengths == []

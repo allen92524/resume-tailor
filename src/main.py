@@ -21,7 +21,12 @@ from src.config import (
     DEFAULT_PROFILE,
     get_profile_path,
 )
-from src.llm_client import is_ollama_model, get_ollama_model_name, prepare_ollama
+from src.llm_client import (
+    is_ollama_model,
+    get_ollama_model_name,
+    prepare_ollama,
+    list_ollama_models,
+)
 from src.models import (
     ResumeContent,
     JDAnalysis,
@@ -553,14 +558,28 @@ def profile_restore(ctx):
 @cli.command()
 @click.option(
     "--model",
-    default=DEFAULT_MODEL,
-    show_default=True,
+    default=None,
     help="LLM model to use. 'claude' for Anthropic API, or 'ollama:<name>' for local Ollama.",
 )
 @click.pass_context
 def review(ctx, model):
     """Review your base resume for quality and get improvement suggestions."""
     pname = ctx.obj["profile_name"]
+
+    prof = load_profile(pname)
+    if not prof:
+        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        sys.exit(1)
+
+    # Model selection: interactive menu if --model not provided
+    if model is None:
+        prefs = get_preferences(prof)
+        model = select_model_interactive(prefs)
+
+        if prefs.get("model") != model:
+            prof.preferences["model"] = model
+            save_profile(prof, pname)
+
     if is_ollama_model(model):
         click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
         try:
@@ -570,11 +589,6 @@ def review(ctx, model):
             sys.exit(1)
     else:
         validate_api_key()
-
-    prof = load_profile(pname)
-    if not prof:
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
-        sys.exit(1)
 
     if not prof.base_resume:
         click.echo("Error: No base resume in your profile.")
@@ -617,6 +631,92 @@ def review(ctx, model):
         prof.base_resume = improved
         save_profile(prof, pname)
         click.echo("Base resume updated and saved.")
+
+
+# ---------------------------------------------------------------------------
+# Interactive model selection
+# ---------------------------------------------------------------------------
+
+
+def select_model_interactive(profile_prefs: dict) -> str:
+    """Show an interactive menu for model selection.
+
+    Auto-detects available backends (Claude API key, Ollama) and presents
+    numbered options. Returns the model string (e.g. 'claude', 'ollama:qwen3.5').
+    """
+    from src.config import OLLAMA_BASE_URL
+
+    options: list[dict] = []
+
+    # Check for saved preference
+    saved_model = profile_prefs.get("model")
+
+    # Check Claude availability
+    has_claude = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if has_claude:
+        options.append({
+            "value": "claude",
+            "label": "Claude (Anthropic API)",
+            "detail": "Best quality, paid API, fastest",
+        })
+
+    # Check Ollama availability
+    ollama_models = list_ollama_models(OLLAMA_BASE_URL)
+    for m in ollama_models:
+        name = m["name"]
+        size = m["size_gb"]
+        size_str = f"{size}GB" if size else "unknown size"
+        options.append({
+            "value": f"ollama:{name}",
+            "label": f"Ollama: {name}",
+            "detail": f"Local, free, {size_str}",
+        })
+
+    if not options:
+        click.echo(
+            "Error: No AI models available.\n"
+            "  - Set ANTHROPIC_API_KEY for Claude API, or\n"
+            "  - Start Ollama with: ollama serve"
+        )
+        sys.exit(1)
+
+    # If only one option, use it automatically
+    if len(options) == 1:
+        choice = options[0]["value"]
+        click.echo(f"Using {options[0]['label']} (only available backend)")
+        return choice
+
+    # Show menu
+    click.echo("\n--- Select AI Model ---\n")
+
+    # Mark the saved default
+    default_idx = 1
+    for i, opt in enumerate(options, 1):
+        marker = ""
+        if opt["value"] == saved_model:
+            marker = " (saved default)"
+            default_idx = i
+        click.echo(f"  {i}. {opt['label']}{marker}")
+        click.echo(f"     {opt['detail']}")
+
+    click.echo("")
+    choice_str = click.prompt(
+        "Choose a model",
+        default=str(default_idx),
+        show_default=True,
+    ).strip()
+
+    try:
+        idx = int(choice_str) - 1
+        if idx < 0 or idx >= len(options):
+            raise ValueError()
+    except ValueError:
+        click.echo("Invalid selection. Using default.")
+        idx = default_idx - 1
+
+    selected = options[idx]["value"]
+    click.echo(f"Selected: {options[idx]['label']}\n")
+    return selected
 
 
 # ---------------------------------------------------------------------------
@@ -672,8 +772,7 @@ def review(ctx, model):
 )
 @click.option(
     "--model",
-    default=DEFAULT_MODEL,
-    show_default=True,
+    default=None,
     help="LLM model to use. 'claude' for Anthropic API, or 'ollama:<name>' for local Ollama.",
 )
 @click.pass_context
@@ -686,30 +785,44 @@ def generate(
     reference_path: str | None,
     resume_session: bool,
     dry_run: bool,
-    model: str,
+    model: str | None,
 ):
     """Generate a tailored resume from your resume and a job description."""
     pname = ctx.obj["profile_name"]
 
-    if dry_run:
-        click.echo(
-            click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
-        )
-    elif is_ollama_model(model):
-        click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
-        try:
-            prepare_ollama(model)
-        except (ConnectionError, RuntimeError) as e:
-            click.echo(f"Error: {e}")
-            sys.exit(1)
-    else:
-        # Validate API key before collecting any input
-        validate_api_key()
-
-    # Load or create profile
+    # Load or create profile (needed before model selection for saved prefs)
     prof = load_profile(pname)
     if not prof:
         prof = first_run_setup(pname)
+
+    # Model selection: interactive menu if --model not provided
+    if dry_run:
+        model = model or DEFAULT_MODEL
+        click.echo(
+            click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
+        )
+    elif model is None:
+        # Interactive model selection
+        prefs = get_preferences(prof)
+        model = select_model_interactive(prefs)
+
+        # Save model preference if different from what's stored
+        if prefs.get("model") != model:
+            prof.preferences["model"] = model
+            save_profile(prof, pname)
+
+    # Now validate/prepare the chosen backend
+    if not dry_run:
+        if is_ollama_model(model):
+            click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
+            try:
+                prepare_ollama(model)
+            except (ConnectionError, RuntimeError) as e:
+                click.echo(f"Error: {e}")
+                sys.exit(1)
+        else:
+            # Validate API key before collecting any input
+            validate_api_key()
 
     # Apply saved preferences as defaults (flags override)
     prefs = get_preferences(prof)
@@ -1169,7 +1282,29 @@ def generate(
         except Exception as e:
             logger.error("Resume generation failed: %s", e)
             click.echo(f"Error generating resume: {e}")
-            sys.exit(1)
+
+            # Fallback: if using Ollama, offer to switch to Claude
+            if is_ollama_model(model):
+                if click.confirm(
+                    "Local model is having issues. "
+                    "Would you like to switch to Claude API?",
+                    default=True,
+                ):
+                    validate_api_key()
+                    model = "claude"
+                    click.echo("Retrying with Claude API...")
+                    try:
+                        resume_data = generate_tailored_resume(
+                            resume_text, jd_analysis, user_additions, model=model
+                        )
+                    except Exception as e2:
+                        logger.error("Claude fallback also failed: %s", e2)
+                        click.echo(f"Error generating resume with Claude: {e2}")
+                        sys.exit(1)
+                else:
+                    sys.exit(1)
+            else:
+                sys.exit(1)
 
     click.echo("Resume content generated.")
 

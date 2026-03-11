@@ -10,6 +10,10 @@ OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "300"))  # seconds
 OLLAMA_RETRY_ATTEMPTS = 3
 OLLAMA_RETRY_DELAY = 10  # seconds between retries
 OLLAMA_READY_TIMEOUT = 30  # seconds to wait for Ollama to be ready
+OLLAMA_HARD_TIMEOUT = 300  # 5 minutes hard cap per call
+OLLAMA_MIN_RESPONSE_LENGTH = 100  # chars — shorter is likely broken
+OLLAMA_MAX_RESPONSE_LENGTH = 50000  # chars — longer is likely broken
+OLLAMA_CONTEXT_WARN_TOKENS = 4000  # warn if estimated tokens exceed this
 
 # Alias for backward compatibility within call_api
 MODEL = CLAUDE_MODEL

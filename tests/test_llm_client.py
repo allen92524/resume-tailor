@@ -18,6 +18,11 @@ from src.llm_client import (
     normalize_response,
     _normalize_string_list,
     _detect_schema,
+    list_ollama_models,
+    is_ollama_reachable,
+    estimate_tokens,
+    check_context_window,
+    validate_response_length,
 )
 
 
@@ -81,12 +86,15 @@ class TestCallLlmClaude:
 class TestCallLlmOllama:
     """Test that call_llm routes to Ollama for ollama: prefixed models."""
 
+    # Responses must be >= OLLAMA_MIN_RESPONSE_LENGTH (100 chars)
+    _VALID_RESPONSE = "x" * 200
+
     @patch("src.llm_client.httpx.post")
     def test_routes_to_ollama(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "message": {"content": "Ollama response text"}
+            "message": {"content": self._VALID_RESPONSE}
         }
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
@@ -97,7 +105,7 @@ class TestCallLlmOllama:
             model="ollama:qwen3.5",
         )
 
-        assert result == "Ollama response text"
+        assert result == self._VALID_RESPONSE
         mock_post.assert_called_once()
         call_args = mock_post.call_args
         assert call_args.kwargs["json"]["model"] == "qwen3.5"
@@ -107,7 +115,7 @@ class TestCallLlmOllama:
     def test_ollama_sends_system_and_user_messages(self, mock_post):
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "message": {"content": "ok"}
+            "message": {"content": self._VALID_RESPONSE}
         }
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
@@ -169,7 +177,7 @@ class TestCallLlmOllama:
     @patch("src.llm_client.httpx.post")
     def test_ollama_uses_custom_base_url(self, mock_post):
         mock_response = MagicMock()
-        mock_response.json.return_value = {"message": {"content": "ok"}}
+        mock_response.json.return_value = {"message": {"content": self._VALID_RESPONSE}}
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
 
@@ -186,7 +194,7 @@ class TestCallLlmOllama:
     @patch("src.llm_client.httpx.post")
     def test_ollama_uses_correct_url(self, mock_post):
         mock_response = MagicMock()
-        mock_response.json.return_value = {"message": {"content": "ok"}}
+        mock_response.json.return_value = {"message": {"content": self._VALID_RESPONSE}}
         mock_response.raise_for_status = MagicMock()
         mock_post.return_value = mock_response
 
@@ -233,8 +241,9 @@ class TestOllamaRetryLogic:
     @patch("src.llm_client.httpx.post")
     def test_succeeds_after_retry(self, mock_post, mock_sleep):
         """Should succeed if a retry works."""
+        valid_text = "x" * 200
         ok_response = MagicMock()
-        ok_response.json.return_value = {"message": {"content": "hello"}}
+        ok_response.json.return_value = {"message": {"content": valid_text}}
         ok_response.raise_for_status = MagicMock()
 
         # Fail once, then succeed
@@ -244,7 +253,7 @@ class TestOllamaRetryLogic:
         ]
 
         result = _call_ollama(model_name="qwen3.5", system="sys", user_content="hi")
-        assert result == "hello"
+        assert result == valid_text
         assert mock_post.call_count == 2
         assert mock_sleep.call_count == 1
 
@@ -719,6 +728,67 @@ class TestSpinner:
         spinner.stop()  # second stop should not raise
 
 
+class TestListOllamaModels:
+    """Test listing available Ollama models."""
+
+    @patch("src.llm_client.httpx.get")
+    def test_returns_models(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "models": [
+                {"name": "qwen3.5:latest", "size": 4_000_000_000},
+                {"name": "gemma3:latest", "size": 2_000_000_000},
+            ]
+        }
+        mock_get.return_value = mock_resp
+
+        result = list_ollama_models(base_url="http://localhost:11434")
+        assert len(result) == 2
+        assert result[0]["name"] == "qwen3.5:latest"
+        assert result[0]["size_gb"] == 3.7
+        assert result[1]["name"] == "gemma3:latest"
+
+    @patch("src.llm_client.httpx.get")
+    def test_returns_empty_on_connection_error(self, mock_get):
+        mock_get.side_effect = httpx.ConnectError("refused")
+        result = list_ollama_models(base_url="http://localhost:11434")
+        assert result == []
+
+    @patch("src.llm_client.httpx.get")
+    def test_returns_empty_on_timeout(self, mock_get):
+        mock_get.side_effect = httpx.TimeoutException("timed out")
+        result = list_ollama_models(base_url="http://localhost:11434")
+        assert result == []
+
+    @patch("src.llm_client.httpx.get")
+    def test_returns_empty_when_no_models(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {"models": []}
+        mock_get.return_value = mock_resp
+
+        result = list_ollama_models(base_url="http://localhost:11434")
+        assert result == []
+
+
+class TestIsOllamaReachable:
+    """Test the quick Ollama reachability check."""
+
+    @patch("src.llm_client.httpx.get")
+    def test_reachable(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        assert is_ollama_reachable(base_url="http://localhost:11434") is True
+
+    @patch("src.llm_client.httpx.get")
+    def test_not_reachable(self, mock_get):
+        mock_get.side_effect = httpx.ConnectError("refused")
+        assert is_ollama_reachable(base_url="http://localhost:11434") is False
+
+
 class TestPrepareOllamaHint:
     """Test that prepare_ollama shows the time estimate hint."""
 
@@ -731,3 +801,132 @@ class TestPrepareOllamaHint:
         captured = capsys.readouterr()
         assert "2-5 minutes" in captured.out
         assert "--model claude" in captured.out
+
+
+class TestEstimateTokens:
+    """Test the rough token estimator."""
+
+    def test_empty_string(self):
+        assert estimate_tokens("") == 0
+
+    def test_short_text(self):
+        # "hello" = 5 chars -> 1 token
+        assert estimate_tokens("hello") == 1
+
+    def test_longer_text(self):
+        text = "a" * 400
+        assert estimate_tokens(text) == 100
+
+    def test_realistic_text(self):
+        text = "This is a sample resume with some words " * 25  # ~1000 chars
+        result = estimate_tokens(text)
+        assert 200 <= result <= 300
+
+
+class TestCheckContextWindow:
+    """Test context window warning for small models."""
+
+    def test_no_warning_under_limit(self, capsys):
+        # 100 chars each => ~50 tokens total, well under 4000
+        check_context_window("short system prompt", "short user content")
+        captured = capsys.readouterr()
+        assert "Warning" not in captured.out
+
+    def test_warns_over_limit(self, capsys):
+        # 20000 chars each => ~10000 tokens, well over 4000
+        big_system = "x" * 20000
+        big_user = "y" * 20000
+        check_context_window(big_system, big_user)
+        captured = capsys.readouterr()
+        assert "Warning" in captured.out
+        assert "too long" in captured.out
+        assert "--model claude" in captured.out
+
+    @patch("src.llm_client.httpx.post")
+    def test_call_llm_checks_context_window(self, mock_post, capsys):
+        """call_llm should check context window for Ollama models."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"message": {"content": "x" * 200}}
+        mock_resp.raise_for_status = MagicMock()
+        mock_post.return_value = mock_resp
+
+        big_content = "x" * 20000
+        call_llm(system="sys", user_content=big_content, model="ollama:qwen3.5")
+        captured = capsys.readouterr()
+        assert "Warning" in captured.out
+
+
+class TestValidateResponseLength:
+    """Test response length validation."""
+
+    def test_valid_response(self):
+        # 200 chars — within bounds
+        validate_response_length("x" * 200, "test-model")
+
+    def test_too_short(self):
+        with pytest.raises(RuntimeError, match="too short"):
+            validate_response_length("x" * 50, "test-model")
+
+    def test_too_long(self):
+        with pytest.raises(RuntimeError, match="too long"):
+            validate_response_length("x" * 60000, "test-model")
+
+    def test_boundary_min(self):
+        # Exactly 100 chars — should pass
+        validate_response_length("x" * 100, "test-model")
+
+    def test_boundary_max(self):
+        # Exactly 50000 chars — should pass
+        validate_response_length("x" * 50000, "test-model")
+
+    @patch("src.llm_client.time.sleep")
+    @patch("src.llm_client.httpx.post")
+    def test_short_response_retried(self, mock_post, mock_sleep):
+        """Short responses should be retried, not immediately fatal."""
+        short_resp = MagicMock()
+        short_resp.json.return_value = {"message": {"content": "hi"}}
+        short_resp.raise_for_status = MagicMock()
+
+        ok_resp = MagicMock()
+        ok_resp.json.return_value = {"message": {"content": "x" * 200}}
+        ok_resp.raise_for_status = MagicMock()
+
+        mock_post.side_effect = [short_resp, ok_resp]
+
+        result = _call_ollama(model_name="qwen3.5", system="sys", user_content="hi")
+        assert len(result) == 200
+        assert mock_post.call_count == 2
+
+    @patch("src.llm_client.time.sleep")
+    @patch("src.llm_client.httpx.post")
+    def test_short_response_fails_after_retries(self, mock_post, mock_sleep):
+        """Short responses should raise after all retries exhausted."""
+        short_resp = MagicMock()
+        short_resp.json.return_value = {"message": {"content": "hi"}}
+        short_resp.raise_for_status = MagicMock()
+
+        mock_post.return_value = short_resp
+
+        with pytest.raises(RuntimeError, match="too short"):
+            _call_ollama(model_name="qwen3.5", system="sys", user_content="hi")
+
+        assert mock_post.call_count == 3
+
+
+class TestHardTimeout:
+    """Test that Ollama calls use the hard timeout."""
+
+    @patch("src.llm_client.OLLAMA_HARD_TIMEOUT", 120)
+    @patch("src.llm_client.httpx.post")
+    def test_uses_hard_timeout(self, mock_post):
+        """The timeout passed to httpx should be the min of OLLAMA_TIMEOUT and HARD_TIMEOUT."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"message": {"content": "x" * 200}}
+        mock_resp.raise_for_status = MagicMock()
+        mock_post.return_value = mock_resp
+
+        _call_ollama(model_name="qwen3.5", system="sys", user_content="hi")
+
+        call_kwargs = mock_post.call_args.kwargs
+        # OLLAMA_TIMEOUT=300, OLLAMA_HARD_TIMEOUT=120 => min=120
+        assert call_kwargs["timeout"] == 120.0

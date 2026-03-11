@@ -3,8 +3,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
 from src.compatibility_assessor import assess_compatibility, display_assessment
 from src.models import JDAnalysis, CompatibilityAssessment
 
@@ -56,12 +54,16 @@ class TestAssessCompatibility:
 
         assert result.proceed is True  # 30 >= 30
 
-    def test_json_parse_error(self, sample_resume, mock_jd_analysis):
+    def test_json_parse_fallback(self, sample_resume, mock_jd_analysis):
+        """When LLM returns unparseable text, parse_json_response returns {}
+        and CompatibilityAssessment gets default values."""
         jd = JDAnalysis.from_dict(mock_jd_analysis)
 
         with patch("src.compatibility_assessor.call_llm", return_value="not json"):
-            with pytest.raises(json.JSONDecodeError):
-                assess_compatibility(sample_resume, jd)
+            result = assess_compatibility(sample_resume, jd)
+
+        assert result.match_score == 0
+        assert result.proceed is False
 
 
 class TestDisplayAssessment:

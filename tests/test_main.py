@@ -5,10 +5,12 @@ import os
 import tempfile
 from unittest.mock import patch
 
+import pytest
+
 from click.testing import CliRunner
 
-from src.main import cli, _summarize_resume, _summarize_jd
-from src.models import Profile, Identity
+from src.main import cli, _summarize_resume, _summarize_jd, select_model_interactive
+from src.models import Profile, Identity, ResumeContent
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -176,6 +178,204 @@ class TestProfileCommands:
         assert "view" in result.output
         assert "update" in result.output
         assert "reset" in result.output
+
+
+class TestSelectModelInteractive:
+    """Test the interactive model selection menu."""
+
+    @patch("src.main.list_ollama_models", return_value=[])
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
+    def test_only_claude_available_auto_selects(self, mock_ollama):
+        """When only Claude is available, it should auto-select without prompting."""
+        result = select_model_interactive({})
+        assert result == "claude"
+
+    @patch("src.main.list_ollama_models", return_value=[
+        {"name": "qwen3.5:latest", "size_gb": 3.7},
+    ])
+    @patch.dict(os.environ, {}, clear=True)
+    def test_only_ollama_available_auto_selects(self, mock_ollama):
+        """When only one Ollama model is available, auto-select it."""
+        # Clear ANTHROPIC_API_KEY
+        result = select_model_interactive({})
+        assert result == "ollama:qwen3.5:latest"
+
+    @patch("src.main.list_ollama_models", return_value=[])
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_backends_exits(self, mock_ollama):
+        """When no backends are available, should exit."""
+        with pytest.raises(SystemExit):
+            select_model_interactive({})
+
+
+class TestOllamaFallbackChain:
+    """Test that Ollama failure offers fallback to Claude."""
+
+    def test_fallback_offered_on_ollama_failure(self):
+        """When Ollama fails, user should be asked to switch to Claude."""
+        runner = CliRunner()
+
+        sample_resume = _load_fixture("sample_resume.txt")
+        sample_jd = _load_fixture("sample_jd.txt")
+
+        mock_profile = Profile(
+            identity=Identity(name="Sarah Chen", email="test@test.com"),
+            base_resume=sample_resume,
+            experience_bank={},
+            history=[],
+            preferences={"format": "md"},
+        )
+
+        mock_session = {
+            "resume_text": sample_resume,
+            "jd_text": sample_jd,
+            "saved_at": "2026-03-01T00:00:00Z",
+        }
+
+        mock_generation = _load_json_fixture("mock_resume_generation.json")
+
+        with patch("src.main.validate_api_key"), \
+             patch("src.main.load_profile", return_value=mock_profile), \
+             patch("src.main.save_profile"), \
+             patch("src.main.load_session", return_value=mock_session), \
+             patch("src.main.save_session"), \
+             patch("src.main.append_history"), \
+             patch("src.main.save_preferences"), \
+             patch("src.main.prepare_ollama"), \
+             patch("src.main.analyze_jd") as mock_analyze, \
+             patch("src.main.analyze_gaps"), \
+             patch("src.main.assess_compatibility"), \
+             patch("src.main.generate_tailored_resume") as mock_gen, \
+             patch("src.main.build_resume", return_value=["/tmp/test.md"]):
+
+            # Mock JD analysis
+            from src.models import JDAnalysis
+            mock_analyze.return_value = JDAnalysis(
+                job_title="Engineer", company="TestCo"
+            )
+
+            # First call (Ollama) fails, second call (Claude fallback) succeeds
+            mock_gen.side_effect = [
+                RuntimeError("Ollama model failed"),
+                ResumeContent.from_dict(mock_generation),
+            ]
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate",
+                    "--model", "ollama:qwen3.5",
+                    "--resume-session",
+                    "--skip-questions",
+                    "--skip-assessment",
+                    "--format", "md",
+                    "--output", "/tmp",
+                ],
+                input="y\ny\nn\n",  # Use session, switch to Claude, decline open
+            )
+
+            assert result.exit_code == 0, f"CLI failed:\n{result.output}"
+            assert "switch to Claude" in result.output or "Claude API" in result.output
+
+    def test_no_fallback_offered_for_claude_failure(self):
+        """When Claude fails, no fallback should be offered."""
+        runner = CliRunner()
+
+        sample_resume = _load_fixture("sample_resume.txt")
+        sample_jd = _load_fixture("sample_jd.txt")
+
+        mock_profile = Profile(
+            identity=Identity(name="Sarah Chen", email="test@test.com"),
+            base_resume=sample_resume,
+            experience_bank={},
+            history=[],
+            preferences={"format": "md"},
+        )
+
+        mock_session = {
+            "resume_text": sample_resume,
+            "jd_text": sample_jd,
+            "saved_at": "2026-03-01T00:00:00Z",
+        }
+
+        with patch("src.main.validate_api_key"), \
+             patch("src.main.load_profile", return_value=mock_profile), \
+             patch("src.main.save_profile"), \
+             patch("src.main.load_session", return_value=mock_session), \
+             patch("src.main.save_session"), \
+             patch("src.main.append_history"), \
+             patch("src.main.save_preferences"), \
+             patch("src.main.analyze_jd") as mock_analyze, \
+             patch("src.main.analyze_gaps"), \
+             patch("src.main.assess_compatibility"), \
+             patch("src.main.generate_tailored_resume") as mock_gen:
+
+            from src.models import JDAnalysis
+            mock_analyze.return_value = JDAnalysis(
+                job_title="Engineer", company="TestCo"
+            )
+
+            mock_gen.side_effect = RuntimeError("Claude API failed")
+
+            result = runner.invoke(
+                cli,
+                [
+                    "generate",
+                    "--model", "claude",
+                    "--resume-session",
+                    "--skip-questions",
+                    "--skip-assessment",
+                    "--format", "md",
+                ],
+                input="y\n",  # Use session
+            )
+
+            assert result.exit_code != 0
+            assert "switch to Claude" not in result.output
+
+    @patch("click.prompt", return_value="1")
+    @patch("src.main.list_ollama_models", return_value=[
+        {"name": "qwen3.5:latest", "size_gb": 3.7},
+    ])
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
+    def test_user_selects_claude(self, mock_ollama, mock_prompt):
+        """User picks option 1 (Claude)."""
+        result = select_model_interactive({})
+        assert result == "claude"
+
+    @patch("click.prompt", return_value="2")
+    @patch("src.main.list_ollama_models", return_value=[
+        {"name": "qwen3.5:latest", "size_gb": 3.7},
+    ])
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
+    def test_user_selects_ollama(self, mock_ollama, mock_prompt):
+        """User picks option 2 (Ollama model)."""
+        result = select_model_interactive({})
+        assert result == "ollama:qwen3.5:latest"
+
+    @patch("click.prompt", return_value="1")
+    @patch("src.main.list_ollama_models", return_value=[
+        {"name": "qwen3.5:latest", "size_gb": 3.7},
+    ])
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
+    def test_saved_model_shown_as_default(self, mock_ollama, mock_prompt):
+        """Saved model preference should be the default selection."""
+        select_model_interactive({"model": "ollama:qwen3.5:latest"})
+        # The prompt was called with default="2" (the saved model's index)
+        mock_prompt.assert_called_once()
+        call_kwargs = mock_prompt.call_args
+        assert call_kwargs[1]["default"] == "2"
+
+    @patch("click.prompt", return_value="invalid")
+    @patch("src.main.list_ollama_models", return_value=[
+        {"name": "qwen3.5:latest", "size_gb": 3.7},
+    ])
+    @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
+    def test_invalid_input_uses_default(self, mock_ollama, mock_prompt):
+        """Invalid input should fall back to the default option."""
+        result = select_model_interactive({})
+        # Default is option 1 (Claude)
+        assert result == "claude"
 
 
 class TestReviewCommand:

@@ -16,6 +16,10 @@ from .config import (
     OLLAMA_RETRY_ATTEMPTS,
     OLLAMA_RETRY_DELAY,
     OLLAMA_READY_TIMEOUT,
+    OLLAMA_HARD_TIMEOUT,
+    OLLAMA_MIN_RESPONSE_LENGTH,
+    OLLAMA_MAX_RESPONSE_LENGTH,
+    OLLAMA_CONTEXT_WARN_TOKENS,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +33,39 @@ def is_ollama_model(model: str) -> bool:
 def get_ollama_model_name(model: str) -> str:
     """Extract the Ollama model name from an 'ollama:name' string."""
     return model.split(":", 1)[1]
+
+
+def list_ollama_models(base_url: str = OLLAMA_BASE_URL) -> list[dict]:
+    """Fetch available models from Ollama's /api/tags endpoint.
+
+    Returns a list of dicts with 'name' and 'size' keys, or an empty list
+    if Ollama is not reachable.
+    """
+    url = f"{base_url}/api/tags"
+    try:
+        resp = httpx.get(url, timeout=5.0)
+        resp.raise_for_status()
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
+        return []
+
+    data = resp.json()
+    models = []
+    for m in data.get("models", []):
+        name = m.get("name", "")
+        size_bytes = m.get("size", 0)
+        size_gb = size_bytes / (1024 ** 3) if size_bytes else 0
+        models.append({"name": name, "size_gb": round(size_gb, 1)})
+    return models
+
+
+def is_ollama_reachable(base_url: str = OLLAMA_BASE_URL) -> bool:
+    """Quick check if Ollama is reachable (non-blocking, 2s timeout)."""
+    try:
+        resp = httpx.get(f"{base_url}/api/tags", timeout=2.0)
+        resp.raise_for_status()
+        return True
+    except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
+        return False
 
 
 def check_ollama_ready(base_url: str = OLLAMA_BASE_URL) -> None:
@@ -216,6 +253,45 @@ def _show_docker_tip(model_name: str) -> None:
         )
 
 
+def estimate_tokens(text: str) -> int:
+    """Rough token estimate: ~4 characters per token for English text."""
+    return len(text) // 4
+
+
+def check_context_window(system: str, user_content: str) -> None:
+    """Warn if estimated token count exceeds the small-model context limit."""
+    total = estimate_tokens(system) + estimate_tokens(user_content)
+    if total > OLLAMA_CONTEXT_WARN_TOKENS:
+        click.echo(
+            click.style(
+                f"Warning: Estimated input size (~{total} tokens) exceeds "
+                f"{OLLAMA_CONTEXT_WARN_TOKENS} tokens. "
+                "This may be too long for small local models. "
+                "Consider using Claude API (--model claude) or a larger model.",
+                fg="yellow",
+            )
+        )
+    logger.debug("Estimated token count: %d", total)
+
+
+def validate_response_length(text: str, model_name: str) -> None:
+    """Check if response length is within expected bounds.
+
+    Raises RuntimeError if the response is suspiciously short or long.
+    """
+    length = len(text)
+    if length < OLLAMA_MIN_RESPONSE_LENGTH:
+        raise RuntimeError(
+            f"Response from {model_name} is too short ({length} chars). "
+            "The model may not have understood the prompt. Retrying..."
+        )
+    if length > OLLAMA_MAX_RESPONSE_LENGTH:
+        raise RuntimeError(
+            f"Response from {model_name} is too long ({length} chars). "
+            "The output may be corrupted. Retrying..."
+        )
+
+
 def _call_ollama(
     *,
     model_name: str,
@@ -225,7 +301,9 @@ def _call_ollama(
 ) -> str:
     """Call the Ollama REST API with retry logic and elapsed-time progress.
 
-    Retries up to OLLAMA_RETRY_ATTEMPTS times on connection errors and timeouts.
+    Retries up to OLLAMA_RETRY_ATTEMPTS times on connection errors, timeouts,
+    and response length violations. Enforces a hard timeout of
+    OLLAMA_HARD_TIMEOUT seconds per call.
     """
     url = f"{base_url}/api/chat"
     payload = {
@@ -237,6 +315,9 @@ def _call_ollama(
         "stream": False,
     }
 
+    # Use the stricter of OLLAMA_TIMEOUT and OLLAMA_HARD_TIMEOUT
+    effective_timeout = min(float(OLLAMA_TIMEOUT), float(OLLAMA_HARD_TIMEOUT))
+
     logger.debug("Ollama request: model=%s, url=%s", model_name, url)
 
     last_error: Exception | None = None
@@ -245,7 +326,7 @@ def _call_ollama(
         try:
             spinner.start()
             response = httpx.post(
-                url, json=payload, timeout=float(OLLAMA_TIMEOUT)
+                url, json=payload, timeout=effective_timeout
             )
             spinner.stop()
             response.raise_for_status()
@@ -256,6 +337,9 @@ def _call_ollama(
                 raise RuntimeError(
                     f"Empty response from Ollama model '{model_name}'"
                 )
+
+            # Validate response length
+            validate_response_length(text, model_name)
 
             logger.debug("Ollama response length: %d chars", len(text))
             return text
@@ -287,11 +371,27 @@ def _call_ollama(
                 time.sleep(OLLAMA_RETRY_DELAY)
             else:
                 raise TimeoutError(
-                    f"Ollama request timed out after {OLLAMA_TIMEOUT}s "
+                    f"Ollama request timed out after {effective_timeout:.0f}s "
                     f"({OLLAMA_RETRY_ATTEMPTS} attempts). "
                     f"Try increasing OLLAMA_TIMEOUT (currently {OLLAMA_TIMEOUT}s) "
                     f"or use a smaller model."
                 ) from e
+
+        except RuntimeError as e:
+            spinner.stop()
+            # Response length errors are retryable
+            if "too short" in str(e) or "too long" in str(e):
+                last_error = e
+                if attempt < OLLAMA_RETRY_ATTEMPTS:
+                    click.echo(
+                        f"{e} "
+                        f"(attempt {attempt}/{OLLAMA_RETRY_ATTEMPTS})"
+                    )
+                    time.sleep(OLLAMA_RETRY_DELAY)
+                    continue
+                raise
+            # HTTPStatusError-wrapped RuntimeErrors and others — don't retry
+            raise
 
         except httpx.HTTPStatusError as e:
             spinner.stop()
@@ -464,6 +564,7 @@ def call_llm(
     if is_ollama_model(model):
         model_name = get_ollama_model_name(model)
         logger.info("Using Ollama model: %s", model_name)
+        check_context_window(system, user_content)
         return _call_ollama(
             model_name=model_name,
             system=system,

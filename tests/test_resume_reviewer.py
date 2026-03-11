@@ -3,8 +3,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
 from src.resume_reviewer import review_resume, improve_resume, display_review
 from src.models import ResumeReview
 
@@ -22,10 +20,13 @@ class TestReviewResume:
         assert len(result.weaknesses) > 0
         assert len(result.improved_bullets) > 0
 
-    def test_review_json_parse_error(self, sample_resume):
+    def test_review_json_parse_fallback(self, sample_resume):
+        """When LLM returns unparseable text, returns ResumeReview with defaults."""
         with patch("src.resume_reviewer.call_llm", return_value="not json"):
-            with pytest.raises(json.JSONDecodeError):
-                review_resume(sample_resume)
+            result = review_resume(sample_resume)
+
+        assert result.overall_score == 0
+        assert result.strengths == []
 
 
 class TestImproveResume:
