@@ -323,4 +323,4 @@ make check-secrets # Scan repo for personal info patterns
 
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
