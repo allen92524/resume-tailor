@@ -49,7 +49,7 @@ class TestProfileCreateLoadSaveReset:
             "linkedin": None,
             "github": None,
         }
-        with patch("src.profile.call_api", return_value=json.dumps(mock_identity)):
+        with patch("src.profile.call_llm", return_value=json.dumps(mock_identity)):
             profile = create_profile(sample_resume)
 
         assert os.path.isfile(profile_path)
@@ -356,3 +356,82 @@ class TestPlaceholderSkipNoCorruption:
         assert "[X%]" not in result
         assert result.endswith(".")
         assert "Cut deployment time" in result
+
+
+# ---------------------------------------------------------------------------
+# New model fields: GapEntry.adjacent_skills, Profile new fields
+# ---------------------------------------------------------------------------
+
+
+class TestGapEntryAdjacentSkills:
+    def test_gap_entry_has_adjacent_skills(self):
+        from src.models import GapEntry
+
+        gap = GapEntry(
+            skill="Kubernetes",
+            question="How many clusters have you managed?",
+            adjacent_skills=["Docker", "ECS", "container orchestration"],
+        )
+        assert len(gap.adjacent_skills) == 3
+        assert "Docker" in gap.adjacent_skills
+
+    def test_gap_entry_default_empty_adjacent(self):
+        from src.models import GapEntry
+
+        gap = GapEntry(skill="Python", question="How many years?")
+        assert gap.adjacent_skills == []
+
+    def test_gap_analysis_from_dict_with_adjacent(self):
+        from src.models import GapAnalysis
+
+        data = {
+            "gaps": [
+                {
+                    "skill": "Kubernetes",
+                    "question": "Experience?",
+                    "adjacent_skills": ["Docker", "ECS"],
+                }
+            ],
+            "strengths": ["Python"],
+        }
+        result = GapAnalysis.from_dict(data)
+        assert result.gaps[0].adjacent_skills == ["Docker", "ECS"]
+
+
+class TestProfileWritingPreferences:
+    def test_profile_to_dict_includes_new_fields(self):
+        profile = Profile(
+            identity=Identity(name="Test"),
+            base_resume="resume",
+            original_resume="original",
+            writing_preferences={"tone": "formal"},
+            applications_since_review=3,
+        )
+        d = profile.to_dict()
+        assert d["original_resume"] == "original"
+        assert d["writing_preferences"] == {"tone": "formal"}
+        assert d["applications_since_review"] == 3
+
+    def test_profile_from_dict_with_new_fields(self):
+        data = {
+            "identity": {"name": "Test"},
+            "base_resume": "resume",
+            "original_resume": "original",
+            "writing_preferences": {"bullet_length": "shorter"},
+            "applications_since_review": 7,
+        }
+        profile = Profile.from_dict(data)
+        assert profile.original_resume == "original"
+        assert profile.writing_preferences["bullet_length"] == "shorter"
+        assert profile.applications_since_review == 7
+
+    def test_profile_from_dict_defaults(self):
+        """Old profiles without new fields should get defaults."""
+        data = {
+            "identity": {"name": "Test"},
+            "base_resume": "resume",
+        }
+        profile = Profile.from_dict(data)
+        assert profile.original_resume == ""
+        assert profile.writing_preferences == {}
+        assert profile.applications_since_review == 0
