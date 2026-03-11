@@ -17,14 +17,15 @@ from datetime import datetime, timezone
 
 import click
 
-from .api import call_api, parse_json_response
+from .api import parse_json_response
 from .config import (
-    MODEL,
+    DEFAULT_MODEL,
     MAX_TOKENS_CONTACT_EXTRACTION,
     DEFAULT_PROFILE,
     get_profile_dir,
     get_profile_path,
 )
+from .llm_client import call_llm
 from .models import Profile, Identity
 from .prompts import CONTACT_EXTRACTION_SYSTEM, CONTACT_EXTRACTION_USER
 
@@ -53,6 +54,20 @@ def _migrate_legacy_profile() -> None:
         logger.info("Migrated legacy profile from %s to %s", legacy_path, new_path)
 
 
+def _migrate_profile_fields(profile: Profile, profile_name: str = DEFAULT_PROFILE) -> None:
+    """Migrate profile to include new fields introduced in later versions.
+
+    - Copies base_resume to original_resume if original_resume is empty.
+    """
+    changed = False
+    if profile.base_resume and not profile.original_resume:
+        profile.original_resume = profile.base_resume
+        logger.info("Migrated profile: copied base_resume to original_resume")
+        changed = True
+    if changed:
+        save_profile(profile, profile_name)
+
+
 def load_profile(profile_name: str = DEFAULT_PROFILE) -> Profile | None:
     """Load the profile from disk. Returns None if no profile exists."""
     # Auto-migrate legacy profile location for the default profile
@@ -66,7 +81,9 @@ def load_profile(profile_name: str = DEFAULT_PROFILE) -> Profile | None:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     logger.info("Profile loaded from %s", path)
-    return Profile.from_dict(data)
+    profile = Profile.from_dict(data)
+    _migrate_profile_fields(profile, profile_name)
+    return profile
 
 
 def save_profile(profile: Profile, profile_name: str = DEFAULT_PROFILE) -> None:
@@ -79,15 +96,16 @@ def save_profile(profile: Profile, profile_name: str = DEFAULT_PROFILE) -> None:
     logger.info("Profile saved to %s", path)
 
 
-def extract_identity(resume_text: str) -> Identity:
-    """Send resume text to Claude to extract contact/identity fields."""
+def extract_identity(resume_text: str, model: str = DEFAULT_MODEL) -> Identity:
+    """Send resume text to the LLM to extract contact/identity fields."""
     logger.info("Extracting identity from resume")
 
-    response_text = call_api(
-        model=MODEL,
+    response_text = call_llm(
+        model=model,
         max_tokens=MAX_TOKENS_CONTACT_EXTRACTION,
         system=CONTACT_EXTRACTION_SYSTEM,
         user_content=CONTACT_EXTRACTION_USER.format(resume_text=resume_text),
+        purpose="contact extraction",
     )
 
     try:
@@ -101,13 +119,19 @@ def extract_identity(resume_text: str) -> Identity:
     return Identity.from_dict(data)
 
 
-def create_profile(resume_text: str, profile_name: str = DEFAULT_PROFILE) -> Profile:
+def create_profile(
+    resume_text: str,
+    profile_name: str = DEFAULT_PROFILE,
+    model: str = DEFAULT_MODEL,
+    original_resume_text: str | None = None,
+) -> Profile:
     """Create a new profile from a base resume.
 
-    Extracts identity fields via Claude and initializes all sections.
+    Extracts identity fields via the selected LLM and initializes all sections.
+    *original_resume_text* is the unmodified first upload; defaults to resume_text.
     """
     click.echo("Extracting contact information from your resume...")
-    identity = extract_identity(resume_text)
+    identity = extract_identity(resume_text, model=model)
 
     # Show what was extracted
     click.echo("\nExtracted profile:")
@@ -119,6 +143,7 @@ def create_profile(resume_text: str, profile_name: str = DEFAULT_PROFILE) -> Pro
     profile = Profile(
         identity=identity,
         base_resume=resume_text,
+        original_resume=original_resume_text or resume_text,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -128,7 +153,9 @@ def create_profile(resume_text: str, profile_name: str = DEFAULT_PROFILE) -> Pro
     return profile
 
 
-def first_run_setup(profile_name: str = DEFAULT_PROFILE) -> Profile:
+def first_run_setup(
+    profile_name: str = DEFAULT_PROFILE, model: str = DEFAULT_MODEL
+) -> Profile:
     """First-run experience: collect base resume, review it, and create profile."""
     from .resume_parser import collect_resume_text
     from .resume_reviewer import (
@@ -153,10 +180,13 @@ def first_run_setup(profile_name: str = DEFAULT_PROFILE) -> Profile:
         click.echo("Error: No resume text provided.")
         sys.exit(1)
 
+    # Preserve the original upload before any modifications
+    original_resume_text = resume_text
+
     # Review the resume before saving
     click.echo("\nReviewing your resume...")
     try:
-        review = review_resume(resume_text)
+        review = review_resume(resume_text, model=model)
         display_review(review)
 
         # Let user fill in placeholder metrics in suggested bullets
@@ -179,6 +209,7 @@ def first_run_setup(profile_name: str = DEFAULT_PROFILE) -> Profile:
                 resume_text,
                 review,
                 skipped_placeholders=all_skipped or None,
+                model=model,
             )
             resume_text = resolve_resume_placeholders(resume_text)
             click.echo("Resume improved.")
@@ -186,7 +217,12 @@ def first_run_setup(profile_name: str = DEFAULT_PROFILE) -> Profile:
         logger.warning("Resume review failed: %s", e)
         click.echo(f"Warning: Resume review failed ({e}). Continuing with original.")
 
-    return create_profile(resume_text, profile_name)
+    return create_profile(
+        resume_text,
+        profile_name,
+        model=model,
+        original_resume_text=original_resume_text,
+    )
 
 
 
@@ -339,6 +375,13 @@ def export_as_markdown(profile: Profile) -> str:
         lines.append("## Contact")
         for item in contact_items:
             lines.append(f"- {item}")
+        lines.append("")
+
+    # Writing preferences
+    if profile.writing_preferences:
+        lines.append("## Writing Preferences")
+        for key, value in profile.writing_preferences.items():
+            lines.append(f"- **{key}:** {value}")
         lines.append("")
 
     # Experience bank

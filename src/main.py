@@ -368,10 +368,21 @@ def profile_view(ctx):
         if value:
             click.echo(f"  {field.capitalize():10s} {value}")
 
-    # Base resume stats
+    # Resume stats
     if prof.base_resume:
         word_count = len(prof.base_resume.split())
         click.echo(f"\n  Base resume: {word_count} words")
+    if prof.original_resume:
+        orig_words = len(prof.original_resume.split())
+        click.echo(f"  Original resume: {orig_words} words (never modified)")
+    if prof.applications_since_review:
+        click.echo(f"  Applications since last review: {prof.applications_since_review}")
+
+    # Writing preferences
+    if prof.writing_preferences:
+        click.echo("\n  Writing preferences:")
+        for key, value in prof.writing_preferences.items():
+            click.echo(f"    - {key}: {value}")
 
     # Experience bank
     if prof.experience_bank:
@@ -459,6 +470,40 @@ def profile_reset(ctx):
     if click.confirm("\nAre you sure?", default=False):
         delete_profile(pname)
         click.echo("Profile deleted.")
+    else:
+        click.echo("Cancelled.")
+
+
+@profile.command("reset-baseline")
+@click.pass_context
+def profile_reset_baseline(ctx):
+    """Revert base_resume back to the original unmodified resume."""
+    pname = ctx.obj["profile_name"]
+    prof = load_profile(pname)
+    if not prof:
+        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        return
+
+    if not prof.original_resume:
+        click.echo("No original resume stored. Cannot reset baseline.")
+        return
+
+    if prof.base_resume == prof.original_resume:
+        click.echo("Base resume is already the same as the original. Nothing to reset.")
+        return
+
+    base_words = len(prof.base_resume.split())
+    orig_words = len(prof.original_resume.split())
+    click.echo(f"\nCurrent base resume: {base_words} words (improved)")
+    click.echo(f"Original resume:     {orig_words} words (unmodified)")
+
+    if click.confirm(
+        "Revert base resume to the original? All improvements will be lost", default=False
+    ):
+        prof.base_resume = prof.original_resume
+        prof.applications_since_review = 0
+        save_profile(prof, pname)
+        click.echo("Base resume reset to original.")
     else:
         click.echo("Cancelled.")
 
@@ -790,28 +835,19 @@ def generate(
     """Generate a tailored resume from your resume and a job description."""
     pname = ctx.obj["profile_name"]
 
-    # Load or create profile (needed before model selection for saved prefs)
-    prof = load_profile(pname)
-    if not prof:
-        prof = first_run_setup(pname)
-
-    # Model selection: interactive menu if --model not provided
+    # Step 1: Model selection — first thing, before any LLM calls
     if dry_run:
         model = model or DEFAULT_MODEL
         click.echo(
             click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
         )
     elif model is None:
-        # Interactive model selection
-        prefs = get_preferences(prof)
+        # Load profile only to check saved model preference (no LLM calls)
+        existing_prof = load_profile(pname)
+        prefs = get_preferences(existing_prof) if existing_prof else {}
         model = select_model_interactive(prefs)
 
-        # Save model preference if different from what's stored
-        if prefs.get("model") != model:
-            prof.preferences["model"] = model
-            save_profile(prof, pname)
-
-    # Now validate/prepare the chosen backend
+    # Validate/prepare the chosen backend before any LLM calls
     if not dry_run:
         if is_ollama_model(model):
             click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
@@ -821,8 +857,19 @@ def generate(
                 click.echo(f"Error: {e}")
                 sys.exit(1)
         else:
-            # Validate API key before collecting any input
             validate_api_key()
+
+    # Load or create profile (now uses the selected model for any LLM calls)
+    prof = load_profile(pname)
+    if not prof:
+        prof = first_run_setup(pname, model=model)
+
+    # Save model preference if different from what's stored
+    if not dry_run:
+        prefs = get_preferences(prof)
+        if prefs.get("model") != model:
+            prof.preferences["model"] = model
+            save_profile(prof, pname)
 
     # Apply saved preferences as defaults (flags override)
     prefs = get_preferences(prof)
