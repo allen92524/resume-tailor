@@ -171,12 +171,6 @@ class GapAnalysis:
         ]
         return cls(gaps=gaps, strengths=data.get("strengths", []))
 
-    def to_dict(self) -> dict:
-        return {
-            "gaps": [{"skill": g.skill, "question": g.question} for g in self.gaps],
-            "strengths": self.strengths,
-        }
-
 
 @dataclass
 class CompatibilityAssessment:

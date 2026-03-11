@@ -11,7 +11,6 @@ from src.resume_parser import (
     read_resume_from_file,
     _looks_like_file_path,
     _convert_docker_path,
-    read_input_smart,
 )
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -147,16 +146,3 @@ class TestConvertDockerPath:
         assert _convert_docker_path("/Users/jane/Downloads/resume.pdf") == "/Users/jane/Downloads/resume.pdf"
 
 
-class TestReadInputSmart:
-    def test_pasted_text_returned_as_is(self):
-        text = "John Smith\nSoftware Engineer"
-        assert read_input_smart(text) == text.strip()
-
-    def test_file_path_reads_file(self):
-        path = os.path.join(FIXTURES_DIR, "sample_resume.txt")
-        text = read_input_smart(path)
-        assert "Sarah Chen" in text
-
-    def test_nonexistent_file_raises(self):
-        with pytest.raises(FileNotFoundError):
-            read_input_smart("/nonexistent/resume.txt")

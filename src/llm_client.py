@@ -58,15 +58,6 @@ def list_ollama_models(base_url: str = OLLAMA_BASE_URL) -> list[dict]:
     return models
 
 
-def is_ollama_reachable(base_url: str = OLLAMA_BASE_URL) -> bool:
-    """Quick check if Ollama is reachable (non-blocking, 2s timeout)."""
-    try:
-        resp = httpx.get(f"{base_url}/api/tags", timeout=2.0)
-        resp.raise_for_status()
-        return True
-    except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
-        return False
-
 
 def check_ollama_ready(base_url: str = OLLAMA_BASE_URL) -> None:
     """Ping Ollama's /api/tags endpoint, retrying up to OLLAMA_READY_TIMEOUT seconds.

@@ -188,6 +188,7 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - Never hardcode API keys - use environment variable `ANTHROPIC_API_KEY`
 - Keep prompts in `src/prompts/` template files, loaded by `prompts.py` — not scattered in logic files
 - Print clear progress messages to the user during generation
+- Never commit files containing real personal info. Always use example data (e.g., `user@example.com`, `Jane Doe`) in tests and docs
 
 ## Environment Setup
 ```bash
@@ -211,6 +212,7 @@ python src/main.py generate
 - Then commit with `git add -A && git commit -m "description of change"`
 - Never commit broken code
 - Use descriptive commit messages
+- A pre-commit hook (`.githooks/pre-commit`) scans for personal info — configure with `git config core.hooksPath .githooks`
 
 ## Key Reminders
 - The ANTHROPIC_API_KEY must be set as an environment variable

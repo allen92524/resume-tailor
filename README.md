@@ -296,6 +296,21 @@ Any Ollama model works. Some popular choices:
 | Devstral | `--model ollama:devstral` | Strong at technical resumes |
 | Gemma 3 | `--model ollama:gemma3` | Lightweight option |
 
+## Privacy
+
+Resume Tailor stores all data locally on your machine:
+
+- **Profiles** are saved to `~/.resume-tailor/` (or `$HOME/.resume-tailor/` in Docker). They never leave your machine.
+- **Generated resumes** are written to the `output/` directory. Nothing is uploaded anywhere.
+- **API calls** send your resume text and job description to the LLM provider (Anthropic or your local Ollama). If you use Ollama, all processing stays on your machine.
+- **Git safety** — a pre-commit hook scans for emails, phone numbers, and LinkedIn URLs to prevent accidental commits of personal info. Run `make check-secrets` to scan the full repo anytime.
+
+To enable the pre-commit hook:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Contributing
 
 ```bash
@@ -303,6 +318,7 @@ make dev-install   # Install dev dependencies
 make test          # Run tests
 make lint          # Run linter
 make format        # Format code
+make check-secrets # Scan repo for personal info patterns
 ```
 
 ## License

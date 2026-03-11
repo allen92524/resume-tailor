@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format run run-local run-profile dry-run api metrics docker-build docker-run docker-ollama docker-ollama-api docker-ollama-pull test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run docker-ollama docker-ollama-api docker-ollama-pull test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -25,6 +25,25 @@ test: ## Run pytest
 
 lint: ## Run ruff linter
 	$(RUFF) check src/ tests/
+
+check-secrets: ## Scan repo for possible personal info (emails, phones, LinkedIn URLs)
+	@echo "Scanning for personal info patterns..."
+	@EMAIL_RE='[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'; \
+	SAFE_EMAILS='(user@example\.com|jane\.doe@email\.com|john@example\.com|test@test\.com|noreply@|example\.org|example\.net|@example\.|@test\.|@localhost|@email\.com|@newmail\.com|@llm\.com|user@domain|name@company|someone@|fake@)'; \
+	PHONE_RE='(\([0-9]{3}\)\s*[0-9]{3}[.\-][0-9]{4}|[0-9]{3}[.\-][0-9]{3}[.\-][0-9]{4})'; \
+	SAFE_PHONES='(555[.\-][0-9]{3}[.\-][0-9]{4}|\(555\)|555[.\-][0-9]{4}|000[.\-]000[.\-]0000|999[.\-]999[.\-]9999|\(999\) 000[.\-]0000)'; \
+	LINKEDIN_RE='linkedin\.com/in/[a-zA-Z0-9_-]+'; \
+	SAFE_LINKEDIN='linkedin\.com/in/(example|janedoe|johndoe|yourprofile|username|your-name|sarahchen|johnsmith|michaeltorres|profile)'; \
+	FOUND=0; \
+	for f in $$(git ls-files -- '*.py' '*.md' '*.txt' '*.yml' '*.yaml' '*.json' '*.toml' '*.cfg' '*.ini' '*.sh' | grep -v venv/ | grep -v node_modules/); do \
+		MATCHES=$$(grep -nE "$$EMAIL_RE" "$$f" 2>/dev/null | grep -ivE "$$SAFE_EMAILS" || true); \
+		if [ -n "$$MATCHES" ]; then echo "$$f:$$MATCHES"; FOUND=1; fi; \
+		MATCHES=$$(grep -nE "$$PHONE_RE" "$$f" 2>/dev/null | grep -ivE "$$SAFE_PHONES" || true); \
+		if [ -n "$$MATCHES" ]; then echo "$$f:$$MATCHES"; FOUND=1; fi; \
+		MATCHES=$$(grep -nE "$$LINKEDIN_RE" "$$f" 2>/dev/null | grep -ivE "$$SAFE_LINKEDIN" || true); \
+		if [ -n "$$MATCHES" ]; then echo "$$f:$$MATCHES"; FOUND=1; fi; \
+	done; \
+	if [ "$$FOUND" -eq 0 ]; then echo "No personal info patterns found."; else echo ""; echo "Review the matches above."; exit 1; fi
 
 format: ## Run black formatter
 	$(BLACK) src/ tests/

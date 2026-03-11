@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook: scan staged files for possible personal information.
+# Override with: git commit --no-verify
+#
+
+set -euo pipefail
+
+# Patterns
+EMAIL_RE='[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+PHONE_RE='(\([0-9]{3}\)\s*[0-9]{3}[.\-][0-9]{4}|[0-9]{3}[.\-][0-9]{3}[.\-][0-9]{4})'
+LINKEDIN_RE='linkedin\.com/in/[a-zA-Z0-9_-]+'
+
+# Safe example patterns to exclude (case-insensitive grep)
+SAFE_EMAILS='(user@example\.com|jane\.doe@email\.com|john@example\.com|test@test\.com|noreply@|example\.org|example\.net|@example\.|@test\.|@localhost|@email\.com|@newmail\.com|@llm\.com|user@domain|name@company|someone@|fake@)'
+SAFE_PHONES='(555[.\-][0-9]{3}[.\-][0-9]{4}|\(555\)|555[.\-][0-9]{4}|000[.\-]000[.\-]0000|999[.\-]999[.\-]9999|\(999\) 000[.\-]0000)'
+SAFE_LINKEDIN='linkedin\.com/in/(example|janedoe|johndoe|yourprofile|username|your-name|sarahchen|johnsmith|michaeltorres|profile)'
+
+found=0
+output=""
+
+# Get staged files (only added/modified, skip binary and deleted)
+staged_files=$(git diff --cached --name-only --diff-filter=d 2>/dev/null || true)
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+while IFS= read -r file; do
+    # Skip binary files and common non-text files
+    case "$file" in
+        *.pdf|*.docx|*.png|*.jpg|*.jpeg|*.gif|*.ico|*.woff|*.woff2|*.ttf|*.eot|*.zip|*.tar*|*.gz)
+            continue
+            ;;
+    esac
+
+    # Get the staged content (what's actually being committed)
+    content=$(git show ":$file" 2>/dev/null || true)
+    if [ -z "$content" ]; then
+        continue
+    fi
+
+    # Check emails (exclude safe examples)
+    matches=$(echo "$content" | grep -noE "$EMAIL_RE" | grep -ivE "$SAFE_EMAILS" || true)
+    if [ -n "$matches" ]; then
+        while IFS= read -r match; do
+            output+="  $file:$match (email)\n"
+            found=1
+        done <<< "$matches"
+    fi
+
+    # Check phone numbers (exclude safe examples like 555-xxx-xxxx)
+    matches=$(echo "$content" | grep -noE "$PHONE_RE" | grep -ivE "$SAFE_PHONES" || true)
+    if [ -n "$matches" ]; then
+        while IFS= read -r match; do
+            output+="  $file:$match (phone)\n"
+            found=1
+        done <<< "$matches"
+    fi
+
+    # Check LinkedIn URLs (exclude safe examples)
+    matches=$(echo "$content" | grep -noE "$LINKEDIN_RE" | grep -ivE "$SAFE_LINKEDIN" || true)
+    if [ -n "$matches" ]; then
+        while IFS= read -r match; do
+            output+="  $file:$match (linkedin)\n"
+            found=1
+        done <<< "$matches"
+    fi
+
+done <<< "$staged_files"
+
+if [ "$found" -eq 1 ]; then
+    echo ""
+    echo "WARNING: Possible personal info detected in staged files:"
+    echo ""
+    echo -e "$output"
+    echo "If this is intentional (e.g., example data), re-run with:"
+    echo "  git commit --no-verify"
+    echo ""
+    exit 1
+fi
+
+exit 0

@@ -19,7 +19,6 @@ from src.llm_client import (
     _normalize_string_list,
     _detect_schema,
     list_ollama_models,
-    is_ollama_reachable,
     estimate_tokens,
     check_context_window,
     validate_response_length,
@@ -771,22 +770,6 @@ class TestListOllamaModels:
         result = list_ollama_models(base_url="http://localhost:11434")
         assert result == []
 
-
-class TestIsOllamaReachable:
-    """Test the quick Ollama reachability check."""
-
-    @patch("src.llm_client.httpx.get")
-    def test_reachable(self, mock_get):
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
-
-        assert is_ollama_reachable(base_url="http://localhost:11434") is True
-
-    @patch("src.llm_client.httpx.get")
-    def test_not_reachable(self, mock_get):
-        mock_get.side_effect = httpx.ConnectError("refused")
-        assert is_ollama_reachable(base_url="http://localhost:11434") is False
 
 
 class TestPrepareOllamaHint:

@@ -124,16 +124,6 @@ def _looks_like_file_path(text: str) -> bool:
     return False
 
 
-def read_input_smart(text: str) -> str:
-    """Auto-detect whether input is a file path or pasted content.
-
-    If it looks like a file path (starts with / or ~), try to read the file.
-    Otherwise, return the text as-is.
-    """
-    if _looks_like_file_path(text):
-        return read_resume_from_file(text.strip())
-    return text.strip()
-
 
 def validate_resume_content(text: str) -> bool:
     """Check whether text looks like an actual resume.
