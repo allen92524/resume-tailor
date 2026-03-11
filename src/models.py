@@ -154,6 +154,7 @@ class ResumeContent:
 class GapEntry:
     skill: str = ""
     question: str = ""
+    adjacent_skills: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -286,6 +287,9 @@ class Identity:
 class Profile:
     identity: Identity = field(default_factory=Identity)
     base_resume: str = ""
+    original_resume: str = ""
+    writing_preferences: dict[str, str] = field(default_factory=dict)
+    applications_since_review: int = 0
     experience_bank: dict[str, str] = field(default_factory=dict)
     history: list[dict] = field(default_factory=list)
     preferences: dict = field(default_factory=dict)
@@ -298,6 +302,9 @@ class Profile:
         return cls(
             identity=identity,
             base_resume=data.get("base_resume", ""),
+            original_resume=data.get("original_resume", ""),
+            writing_preferences=data.get("writing_preferences", {}),
+            applications_since_review=data.get("applications_since_review", 0),
             experience_bank=data.get("experience_bank", {}),
             history=data.get("history", []),
             preferences=data.get("preferences", {}),
@@ -309,6 +316,9 @@ class Profile:
         return {
             "identity": self.identity.to_dict(),
             "base_resume": self.base_resume,
+            "original_resume": self.original_resume,
+            "writing_preferences": self.writing_preferences,
+            "applications_since_review": self.applications_since_review,
             "experience_bank": self.experience_bank,
             "history": self.history,
             "preferences": self.preferences,

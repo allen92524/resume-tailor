@@ -36,6 +36,7 @@ def review_resume(resume_text: str, model: str = DEFAULT_MODEL) -> ResumeReview:
         max_tokens=MAX_TOKENS_REVIEW,
         system=RESUME_REVIEW_SYSTEM,
         user_content=RESUME_REVIEW_USER.format(resume_text=resume_text),
+        purpose="resume review",
     )
 
     try:
@@ -83,6 +84,7 @@ def improve_resume(
         max_tokens=MAX_TOKENS_IMPROVE,
         system=RESUME_IMPROVE_SYSTEM,
         user_content=prompt,
+        purpose="resume improve",
     )
 
     logger.info("Resume improved: %d chars", len(text))

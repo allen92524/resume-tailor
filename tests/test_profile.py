@@ -179,6 +179,66 @@ class TestExportAsMarkdown:
         assert "85%" in md
 
 
+class TestProfileNewFields:
+    def test_writing_preferences_roundtrip(self, profile_dir):
+        profile = Profile(
+            identity=Identity(name="Test"),
+            writing_preferences={"tone": "formal", "bullet_length": "shorter"},
+        )
+        save_profile(profile)
+        loaded = load_profile()
+        assert loaded.writing_preferences["tone"] == "formal"
+        assert loaded.writing_preferences["bullet_length"] == "shorter"
+
+    def test_applications_since_review_roundtrip(self, profile_dir):
+        profile = Profile(
+            identity=Identity(name="Test"),
+            applications_since_review=5,
+        )
+        save_profile(profile)
+        loaded = load_profile()
+        assert loaded.applications_since_review == 5
+
+    def test_original_resume_roundtrip(self, profile_dir):
+        profile = Profile(
+            identity=Identity(name="Test"),
+            base_resume="Improved version",
+            original_resume="Original version",
+        )
+        save_profile(profile)
+        loaded = load_profile()
+        assert loaded.base_resume == "Improved version"
+        assert loaded.original_resume == "Original version"
+
+    def test_migration_copies_base_to_original(self, profile_dir):
+        """When loading a profile without original_resume, it should be migrated."""
+        _, profile_path = profile_dir
+        # Write a profile without original_resume field
+        data = {
+            "identity": {"name": "Test"},
+            "base_resume": "My resume text",
+            "experience_bank": {},
+            "history": [],
+            "preferences": {},
+        }
+        with open(profile_path, "w") as f:
+            json.dump(data, f)
+
+        loaded = load_profile()
+        assert loaded.original_resume == "My resume text"
+
+    def test_migration_does_not_overwrite_existing_original(self, profile_dir):
+        """If original_resume already exists, migration should not change it."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            base_resume="Improved",
+            original_resume="Original",
+        )
+        save_profile(profile)
+        loaded = load_profile()
+        assert loaded.original_resume == "Original"
+
+
 class TestExtractIdentity:
     def test_extract_identity_mocked(self, sample_resume):
         mock_identity = {
@@ -190,7 +250,7 @@ class TestExtractIdentity:
             "github": "github.com/sarahchen",
         }
 
-        with patch("src.profile.call_api", return_value=json.dumps(mock_identity)):
+        with patch("src.profile.call_llm", return_value=json.dumps(mock_identity)):
             result = extract_identity(sample_resume)
 
         assert isinstance(result, Identity)
@@ -284,7 +344,7 @@ class TestCreateProfile:
             "github": None,
         }
 
-        with patch("src.profile.call_api", return_value=json.dumps(mock_identity)):
+        with patch("src.profile.call_llm", return_value=json.dumps(mock_identity)):
             profile = create_profile(sample_resume)
 
         assert isinstance(profile, Profile)
@@ -292,3 +352,37 @@ class TestCreateProfile:
         assert profile.base_resume == sample_resume
         assert profile.experience_bank == {}
         assert profile.history == []
+
+    def test_create_profile_stores_original_resume(self, profile_dir, sample_resume):
+        mock_identity = {
+            "name": "Sarah Chen",
+            "email": "sarah.chen@email.com",
+            "phone": None,
+            "location": None,
+            "linkedin": None,
+            "github": None,
+        }
+
+        with patch("src.profile.call_llm", return_value=json.dumps(mock_identity)):
+            profile = create_profile(
+                sample_resume,
+                original_resume_text="Original unmodified resume text",
+            )
+
+        assert profile.base_resume == sample_resume
+        assert profile.original_resume == "Original unmodified resume text"
+
+    def test_create_profile_defaults_original_to_base(self, profile_dir, sample_resume):
+        mock_identity = {
+            "name": "Sarah Chen",
+            "email": None,
+            "phone": None,
+            "location": None,
+            "linkedin": None,
+            "github": None,
+        }
+
+        with patch("src.profile.call_llm", return_value=json.dumps(mock_identity)):
+            profile = create_profile(sample_resume)
+
+        assert profile.original_resume == sample_resume

@@ -271,7 +271,8 @@ class TestOllamaFallbackChain:
                     "--format", "md",
                     "--output", "/tmp",
                 ],
-                input="y\ny\nn\n",  # Use session, switch to Claude, decline open
+                # Use session, switch to Claude, accept summary, accept experience, decline open
+                input="y\ny\n\n\nn\n",
             )
 
             assert result.exit_code == 0, f"CLI failed:\n{result.output}"

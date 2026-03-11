@@ -54,6 +54,22 @@ Rules:
 - Use these default categories: Languages, Infrastructure, CI/CD & DevOps, Observability, Version Control, Cloud & Security — but you may adjust, add, or remove categories to best match the target JD (e.g. add "Frameworks" or "Databases" if relevant)
 - Each category value must be a list of skill strings
 - If the job analysis includes "style_insights" (from a reference resume), adopt the bullet framing style, keyword strategy, section emphasis, and tone described there — but NEVER copy actual content from the reference resume
+
+CAREER GROWTH RULES — apply these to show professional progression across roles:
+- Analyze the candidate's roles chronologically to detect their career progression pattern
+- Most recent role: use leadership language, strategic impact, ownership scope (e.g. "Architected", "Drove", "Established")
+- Middle roles: emphasize execution, technical depth, team contribution (e.g. "Engineered", "Implemented", "Collaborated")
+- Earliest roles: focus on foundational skills, individual contribution (e.g. "Developed", "Built", "Configured")
+- NEVER repeat the same action verb across different roles — each role needs unique verbs
+- Highlight different aspects of each role — find what's unique about that position
+- Don't repeat the same achievement reworded across different roles
+- Industry timeline awareness: use technology terminology appropriate to each role's era
+  - Look at the dates for each role and use language that reflects what was standard at that time
+  - Latest role should use current industry language and modern terminology
+  - Don't retrofit old roles with modern buzzwords (e.g. don't call 2015 work "cloud-native" if it wasn't)
+  - Show progression: traditional → modern → cutting-edge approaches
+- These rules apply to ANY career field — engineering, product, design, data science, management, etc.
+
 Reframing Rules — use these to translate experience into language that resonates with the target role:
 - Reframe "managed/maintained" as "scaled and operated" when describing infrastructure work
 - Reframe build system work as "backend systems" or "platform services" when applying to backend roles

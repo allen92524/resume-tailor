@@ -9,6 +9,9 @@ Rules:
 - Preserve all factual content — only improve presentation
 - Use strong action verbs and quantify achievements where possible
 - Keep standard section headings (Experience, Education, Skills, etc.)
+- NEVER change education entries, certifications, job titles, company names, or employment dates — only improve bullet wording
+- Only change what the user confirmed — if a weakness has a user-provided answer, incorporate that specific detail
+- These rules apply to ANY career field — detect the candidate's field and use appropriate language
 
 {%TRUTHFULNESS%}
 

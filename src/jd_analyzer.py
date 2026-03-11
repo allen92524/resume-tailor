@@ -44,6 +44,7 @@ def analyze_jd(
         max_tokens=MAX_TOKENS_JD_ANALYSIS,
         system=JD_ANALYSIS_SYSTEM,
         user_content=user_content,
+        purpose="JD analysis",
     )
 
     try:

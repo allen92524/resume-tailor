@@ -30,9 +30,12 @@ Rules:
 - Score 80+ for strong resumes, 60-79 for decent, 40-59 for needs work, <40 for major issues
 - Focus on impact: weak verbs, missing metrics, vague descriptions
 - Check for ATS-friendliness: clean formatting cues, standard section names
-- Identify 3-5 weaknesses maximum, prioritized by importance
+- Identify 3-5 weaknesses maximum, prioritized by importance — most recent roles first
 - Suggest improvements for the 3-5 weakest bullet points
 - missing_keywords: common industry terms the candidate likely has but didn't include
+- Weakness suggestions should be simple and concrete with example answers. GOOD: "How many servers did you manage? (e.g. 30, 100, 500+)". BAD: "Describe your measurable impact"
+- NEVER suggest changes to education, certifications, job titles, or dates — only improve bullet wording and section content
+- These rules apply to ANY career field — not just engineering. Detect the candidate's field from their resume and tailor feedback accordingly
 
 STRICT METRICS RULES for improved_bullets:
 {%METRICS_WITH_PLACEHOLDERS%}

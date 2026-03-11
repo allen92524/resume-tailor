@@ -33,6 +33,7 @@ from src.models import (
     GapAnalysis,
     CompatibilityAssessment,
     ResumeReview,
+    ReviewWeakness,
 )
 from src.resume_parser import collect_resume_text, validate_resume_content
 from src.jd_analyzer import analyze_jd, collect_jd_text
@@ -165,6 +166,34 @@ def _summarize_jd(text: str) -> dict:
         "detected_title": detected_title,
         "detected_company": detected_company,
     }
+
+
+def _capture_writing_preference(
+    prof, feedback: str, pname: str = DEFAULT_PROFILE
+) -> None:
+    """Extract and save writing preferences from user feedback."""
+    # Common patterns to detect
+    pref_patterns = {
+        "bullet_length": ["shorter", "longer", "concise", "brief", "detailed"],
+        "tone": ["formal", "casual", "conversational", "professional", "technical"],
+        "verb_avoidance": ["spearheaded", "leveraged", "synergized", "utilized"],
+    }
+    feedback_lower = feedback.lower()
+
+    for category, keywords in pref_patterns.items():
+        for kw in keywords:
+            if kw in feedback_lower:
+                prof.writing_preferences[category] = feedback
+                save_profile(prof, pname)
+                click.echo(
+                    click.style("    Noted: saved as writing preference.", fg="green")
+                )
+                return
+
+    # If no pattern matched, save as general preference
+    prof.writing_preferences["general"] = feedback
+    save_profile(prof, pname)
+    click.echo(click.style("    Noted: saved as writing preference.", fg="green"))
 
 
 def _fill_placeholders_in_text(
@@ -368,10 +397,21 @@ def profile_view(ctx):
         if value:
             click.echo(f"  {field.capitalize():10s} {value}")
 
-    # Base resume stats
+    # Resume stats
     if prof.base_resume:
         word_count = len(prof.base_resume.split())
         click.echo(f"\n  Base resume: {word_count} words")
+    if prof.original_resume:
+        orig_words = len(prof.original_resume.split())
+        click.echo(f"  Original resume: {orig_words} words (never modified)")
+    if prof.applications_since_review:
+        click.echo(f"  Applications since last review: {prof.applications_since_review}")
+
+    # Writing preferences
+    if prof.writing_preferences:
+        click.echo("\n  Writing preferences:")
+        for key, value in prof.writing_preferences.items():
+            click.echo(f"    - {key}: {value}")
 
     # Experience bank
     if prof.experience_bank:
@@ -459,6 +499,40 @@ def profile_reset(ctx):
     if click.confirm("\nAre you sure?", default=False):
         delete_profile(pname)
         click.echo("Profile deleted.")
+    else:
+        click.echo("Cancelled.")
+
+
+@profile.command("reset-baseline")
+@click.pass_context
+def profile_reset_baseline(ctx):
+    """Revert base_resume back to the original unmodified resume."""
+    pname = ctx.obj["profile_name"]
+    prof = load_profile(pname)
+    if not prof:
+        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        return
+
+    if not prof.original_resume:
+        click.echo("No original resume stored. Cannot reset baseline.")
+        return
+
+    if prof.base_resume == prof.original_resume:
+        click.echo("Base resume is already the same as the original. Nothing to reset.")
+        return
+
+    base_words = len(prof.base_resume.split())
+    orig_words = len(prof.original_resume.split())
+    click.echo(f"\nCurrent base resume: {base_words} words (improved)")
+    click.echo(f"Original resume:     {orig_words} words (unmodified)")
+
+    if click.confirm(
+        "Revert base resume to the original? All improvements will be lost", default=False
+    ):
+        prof.base_resume = prof.original_resume
+        prof.applications_since_review = 0
+        save_profile(prof, pname)
+        click.echo("Base resume reset to original.")
     else:
         click.echo("Cancelled.")
 
@@ -604,16 +678,24 @@ def review(ctx, model):
 
     display_review(review_result)
 
-    # Let user fill in placeholder metrics before applying improvements
-    review_result = _fill_review_placeholders(review_result)
+    # Walk through each weakness with targeted questions
+    from src.profile import _ask_weakness_questions
 
-    if click.confirm("Would you like to incorporate these suggestions?", default=False):
-        # Collect skipped placeholder descriptions to avoid re-suggesting
-        all_skipped: list[str] = []
-        for b in review_result.improved_bullets:
-            all_skipped.extend(b.skipped_placeholders)
+    answers, all_skipped = _ask_weakness_questions(review_result, model=model)
 
-        click.echo("Improving your resume...")
+    if answers:
+        answer_context = "\n".join(
+            f"- {issue}: {answer}" for issue, answer in answers.items()
+        )
+        review_result.weaknesses.append(
+            ReviewWeakness(
+                section="User Provided",
+                issue="Additional context from user",
+                suggestion=f"Incorporate these details:\n{answer_context}",
+            )
+        )
+
+        click.echo("Improving your resume with your answers...")
         try:
             improved = improve_resume(
                 prof.base_resume,
@@ -628,9 +710,19 @@ def review(ctx, model):
 
         improved = resolve_resume_placeholders(improved)
 
-        prof.base_resume = improved
-        save_profile(prof, pname)
-        click.echo("Base resume updated and saved.")
+        click.echo("\nImproved resume preview:")
+        click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+        if click.confirm("Save this improved version?", default=True):
+            prof.base_resume = improved
+            prof.applications_since_review = 0
+            save_profile(prof, pname)
+            click.echo("Base resume updated and saved.")
+
+            # Save answers to experience bank
+            for issue, answer in answers.items():
+                save_experience(prof, issue, answer, pname)
+        else:
+            click.echo("Keeping existing resume.")
 
 
 # ---------------------------------------------------------------------------
@@ -790,28 +882,19 @@ def generate(
     """Generate a tailored resume from your resume and a job description."""
     pname = ctx.obj["profile_name"]
 
-    # Load or create profile (needed before model selection for saved prefs)
-    prof = load_profile(pname)
-    if not prof:
-        prof = first_run_setup(pname)
-
-    # Model selection: interactive menu if --model not provided
+    # Step 1: Model selection — first thing, before any LLM calls
     if dry_run:
         model = model or DEFAULT_MODEL
         click.echo(
             click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
         )
     elif model is None:
-        # Interactive model selection
-        prefs = get_preferences(prof)
+        # Load profile only to check saved model preference (no LLM calls)
+        existing_prof = load_profile(pname)
+        prefs = get_preferences(existing_prof) if existing_prof else {}
         model = select_model_interactive(prefs)
 
-        # Save model preference if different from what's stored
-        if prefs.get("model") != model:
-            prof.preferences["model"] = model
-            save_profile(prof, pname)
-
-    # Now validate/prepare the chosen backend
+    # Validate/prepare the chosen backend before any LLM calls
     if not dry_run:
         if is_ollama_model(model):
             click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
@@ -821,8 +904,19 @@ def generate(
                 click.echo(f"Error: {e}")
                 sys.exit(1)
         else:
-            # Validate API key before collecting any input
             validate_api_key()
+
+    # Load or create profile (now uses the selected model for any LLM calls)
+    prof = load_profile(pname)
+    if not prof:
+        prof = first_run_setup(pname, model=model)
+
+    # Save model preference if different from what's stored
+    if not dry_run:
+        prefs = get_preferences(prof)
+        if prefs.get("model") != model:
+            prof.preferences["model"] = model
+            save_profile(prof, pname)
 
     # Apply saved preferences as defaults (flags override)
     prefs = get_preferences(prof)
@@ -830,6 +924,97 @@ def generate(
         output_format = prefs.get("format", DEFAULT_OUTPUT_FORMAT)
     if output_path is None:
         output_path = prefs.get("output_path")
+
+    # Periodic baseline review prompt for returning users
+    if (
+        not dry_run
+        and prof.base_resume
+        and prof.applications_since_review >= 10
+    ):
+        click.echo(
+            click.style(
+                f"\nYou've generated {prof.applications_since_review} resumes since "
+                "your last baseline review.",
+                fg="yellow",
+                bold=True,
+            )
+        )
+        if click.confirm("Want to review your baseline resume?", default=False):
+            click.echo("Reviewing your baseline resume...")
+            try:
+                review_result = review_resume(prof.base_resume, model=model)
+                display_review(review_result)
+                review_result = _fill_review_placeholders(review_result)
+
+                if click.confirm(
+                    "Incorporate these suggestions?", default=False
+                ):
+                    all_skipped: list[str] = []
+                    for b in review_result.improved_bullets:
+                        all_skipped.extend(b.skipped_placeholders)
+
+                    click.echo("Improving your resume...")
+                    improved = improve_resume(
+                        prof.base_resume,
+                        review_result,
+                        skipped_placeholders=all_skipped or None,
+                        model=model,
+                    )
+                    improved = resolve_resume_placeholders(improved)
+                    prof.base_resume = improved
+                    prof.applications_since_review = 0
+                    save_profile(prof, pname)
+                    click.echo("Base resume updated.")
+                else:
+                    # Reset counter even if they decline
+                    prof.applications_since_review = 0
+                    save_profile(prof, pname)
+            except Exception as e:
+                logger.warning("Baseline review failed: %s", e)
+                click.echo(f"Warning: Review failed ({e}). Continuing.")
+
+    # Experience bank review — prompt after every 10 applications
+    if (
+        not dry_run
+        and prof.experience_bank
+        and prof.applications_since_review >= 10
+    ):
+        click.echo(
+            click.style(
+                "\nTime for a quick experience bank review — some answers might be outdated.",
+                fg="yellow",
+            )
+        )
+        if click.confirm("Review your saved answers?", default=False):
+            keys_to_delete: list[str] = []
+            for skill, answer in list(prof.experience_bank.items()):
+                preview = answer[:80] + "..." if len(answer) > 80 else answer
+                click.echo(f"\n  {skill}: {preview}")
+                action = click.prompt(
+                    "    [Enter] Keep  |  [u] Update  |  [d] Delete",
+                    default="",
+                    show_default=False,
+                ).strip().lower()
+                if action == "d":
+                    keys_to_delete.append(skill)
+                    click.echo("    Deleted.")
+                elif action == "u":
+                    new_answer = click.prompt(
+                        "    New answer",
+                        default="",
+                        show_default=False,
+                    ).strip()
+                    if new_answer:
+                        prof.experience_bank[skill] = new_answer
+                        click.echo("    Updated.")
+            for key in keys_to_delete:
+                del prof.experience_bank[key]
+            if keys_to_delete or any(
+                prof.experience_bank.get(k) != v
+                for k, v in list(prof.experience_bank.items())
+            ):
+                save_profile(prof, pname)
+                click.echo("Experience bank updated.")
 
     click.echo("\n" + "=" * 50)
     click.echo("  Resume Tailor - AI-Powered Resume Generator")
@@ -927,6 +1112,52 @@ def generate(
                 click.echo("Please re-run and provide the correct resume.")
                 sys.exit(0)
 
+        # Returning user check: anything new since last application?
+        if has_profile_resume and not dry_run:
+            click.echo("\n--- Returning User Check ---")
+            new_input = click.prompt(
+                "Anything new since your last application? "
+                "New skills, projects, certifications? (Enter to skip)",
+                default="",
+                show_default=False,
+            ).strip()
+            if new_input:
+                # Update base_resume with new info via LLM
+                click.echo("Updating your baseline resume with new information...")
+                try:
+                    # Build a minimal review that tells the LLM to incorporate new info
+                    update_review = ResumeReview(
+                        overall_score=80,
+                        strengths=["Existing resume is solid"],
+                        weaknesses=[
+                            ReviewWeakness(
+                                section="General",
+                                issue="Missing recent experience",
+                                suggestion=f"Incorporate the following new information: {new_input}",
+                            )
+                        ],
+                    )
+                    updated = improve_resume(
+                        prof.base_resume, update_review, model=model
+                    )
+                    updated = resolve_resume_placeholders(updated)
+
+                    click.echo("\nUpdated resume preview (first 500 chars):")
+                    click.echo(updated[:500] + ("..." if len(updated) > 500 else ""))
+                    if click.confirm("Save this update to your profile?", default=True):
+                        resume_text = updated
+                        prof.base_resume = updated
+                        save_profile(prof, pname)
+                        click.echo("Profile updated.")
+                    else:
+                        click.echo("Keeping existing resume.")
+                except Exception as e:
+                    logger.warning("Failed to update resume: %s", e)
+                    click.echo(f"Warning: Could not update resume ({e}). Continuing with existing.")
+
+                # Save new info to experience bank
+                save_experience(prof, "recent_updates", new_input, pname)
+
         # Step 2: Reference Resume (Optional)
         click.echo("\n--- Step 2: Reference Resume (Optional) ---")
         if reference_path:
@@ -960,26 +1191,32 @@ def generate(
                         f"  Warning: Could not load reference resume ({e}). Skipping."
                     )
 
-        # Step 3: Resume Review (skip if profile already has a reviewed resume)
+        # Step 3: Resume Review with Q&A (skip if profile already has a reviewed resume)
         if not dry_run and not has_profile_resume:
             click.echo("\n--- Step 3: Resume Review ---")
             click.echo("Reviewing your resume...")
             try:
+                from src.profile import _ask_weakness_questions
+
                 review_result = review_resume(resume_text, model=model)
                 display_review(review_result)
 
-                # Let user fill in placeholder metrics before applying improvements
-                review_result = _fill_review_placeholders(review_result)
+                # Walk through each weakness with targeted questions
+                answers, all_skipped = _ask_weakness_questions(review_result, model=model)
 
-                if click.confirm(
-                    "Would you like to incorporate these suggestions?", default=False
-                ):
-                    # Collect skipped placeholder descriptions to avoid re-suggesting
-                    all_skipped: list[str] = []
-                    for b in review_result.improved_bullets:
-                        all_skipped.extend(b.skipped_placeholders)
+                if answers:
+                    answer_context = "\n".join(
+                        f"- {issue}: {answer}" for issue, answer in answers.items()
+                    )
+                    review_result.weaknesses.append(
+                        ReviewWeakness(
+                            section="User Provided",
+                            issue="Additional context from user",
+                            suggestion=f"Incorporate these details:\n{answer_context}",
+                        )
+                    )
 
-                    click.echo("Improving your resume...")
+                    click.echo("Improving your resume with your answers...")
                     try:
                         improved = improve_resume(
                             resume_text,
@@ -994,11 +1231,19 @@ def generate(
 
                     if improved:
                         improved = resolve_resume_placeholders(improved)
+                        click.echo("\nImproved resume preview:")
+                        click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+                        if click.confirm("Save this improved version?", default=True):
+                            resume_text = improved
+                            prof.base_resume = improved
+                            save_profile(prof, pname)
+                            click.echo("Base resume updated and saved.")
+                        else:
+                            click.echo("Keeping original resume.")
 
-                        resume_text = improved
-                        prof.base_resume = improved
-                        save_profile(prof, pname)
-                        click.echo("Base resume updated and saved.")
+                    # Save answers to experience bank
+                    for issue, answer in answers.items():
+                        save_experience(prof, issue, answer, pname)
             except Exception as e:
                 logger.warning("Resume review failed: %s", e)
                 click.echo(f"Warning: Resume review failed ({e}). Continuing.")
@@ -1105,9 +1350,11 @@ def generate(
                 for s in gap_result.strengths:
                     click.echo(f"  - {s}")
 
-            # Ask gap questions (with experience bank lookup)
+            # Ask gap questions (with experience bank lookup + conversational follow-up)
             gap_answers: list[str] = []
             if gap_result.gaps:
+                from src.conversation import conversational_qa
+
                 click.echo(
                     "\nI have a few questions based on gaps between your resume and the JD."
                     "\nAnswer each one, or press Enter to skip.\n"
@@ -1153,25 +1400,28 @@ def generate(
                         if choice == "s":
                             pass  # skip — don't include this skill
                         elif choice == "u":
-                            answer = click.prompt(
-                                f"    {gap.question}",
-                                default="",
-                                show_default=False,
+                            answer = conversational_qa(
+                                context_type="skill gap",
+                                context_description=f"{skill}: {gap.question}",
+                                initial_question=gap.question,
+                                model=model,
                             )
-                            if answer.strip():
-                                gap_answers.append(f"{skill}: {answer.strip()}")
-                                save_experience(prof, skill, answer.strip(), pname)
+                            if answer:
+                                gap_answers.append(f"{skill}: {answer}")
+                                save_experience(prof, skill, answer, pname)
                         else:
                             gap_answers.append(f"{skill}: {saved}")
                     else:
-                        answer = click.prompt(
-                            f"  {gap.question}",
-                            default="",
-                            show_default=False,
+                        click.echo(f"\n  {skill}:")
+                        answer = conversational_qa(
+                            context_type="skill gap",
+                            context_description=f"{skill}: {gap.question}",
+                            initial_question=gap.question,
+                            model=model,
                         )
-                        if answer.strip():
-                            gap_answers.append(f"{skill}: {answer.strip()}")
-                            save_experience(prof, skill, answer.strip(), pname)
+                        if answer:
+                            gap_answers.append(f"{skill}: {answer}")
+                            save_experience(prof, skill, answer, pname)
 
             # Generic follow-up questions
             click.echo("\n--- Additional Questions ---")
@@ -1277,7 +1527,11 @@ def generate(
         click.echo("Generating tailored resume content...")
         try:
             resume_data = generate_tailored_resume(
-                resume_text, jd_analysis, user_additions, model=model
+                resume_text,
+                jd_analysis,
+                user_additions,
+                model=model,
+                writing_preferences=prof.writing_preferences or None,
             )
         except Exception as e:
             logger.error("Resume generation failed: %s", e)
@@ -1295,7 +1549,11 @@ def generate(
                     click.echo("Retrying with Claude API...")
                     try:
                         resume_data = generate_tailored_resume(
-                            resume_text, jd_analysis, user_additions, model=model
+                            resume_text,
+                            jd_analysis,
+                            user_additions,
+                            model=model,
+                            writing_preferences=prof.writing_preferences or None,
                         )
                     except Exception as e2:
                         logger.error("Claude fallback also failed: %s", e2)
@@ -1307,6 +1565,45 @@ def generate(
                 sys.exit(1)
 
     click.echo("Resume content generated.")
+
+    # Step 8b: Section-by-section review
+    if not dry_run:
+        click.echo("\n--- Review Generated Resume ---")
+
+        # Show summary
+        if resume_data.summary:
+            click.echo(click.style("\n  Summary:", bold=True))
+            click.echo(f"    {resume_data.summary}")
+            feedback = click.prompt(
+                "    Looks good? (Enter to accept, or type feedback)",
+                default="",
+                show_default=False,
+            ).strip()
+            if feedback:
+                _capture_writing_preference(prof, feedback, pname)
+
+        # Show experience
+        for exp in resume_data.experience:
+            click.echo(click.style(f"\n  {exp.title} — {exp.company}", bold=True))
+            click.echo(f"    {exp.dates}")
+            for i, bullet in enumerate(exp.bullets):
+                click.echo(f"    - {bullet}")
+
+        exp_feedback = click.prompt(
+            "\n    Experience looks good? (Enter to accept, or type feedback)",
+            default="",
+            show_default=False,
+        ).strip()
+        if exp_feedback:
+            _capture_writing_preference(prof, exp_feedback, pname)
+
+        # Show skills
+        if resume_data.skills:
+            click.echo(click.style("\n  Skills:", bold=True))
+            for skill in resume_data.skills:
+                click.echo(f"    {skill}")
+
+        click.echo("")
 
     # Step 9: Output
     formats = [output_format.lower()]
@@ -1351,11 +1648,13 @@ def generate(
                         click.echo(f"PDF conversion failed: {e}")
                     break
 
-    # Save to application history
+    # Save to application history and increment review counter
     company = jd_analysis.company
     role = jd_analysis.job_title
     for fp in filepaths:
         append_history(prof, company, role, match_score, fp, pname)
+    prof.applications_since_review += 1
+    save_profile(prof, pname)
 
     # Save preferences on first successful run (or update if flags were explicit)
     if not prefs.get("format"):
