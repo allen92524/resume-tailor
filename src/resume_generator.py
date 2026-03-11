@@ -18,6 +18,7 @@ def generate_tailored_resume(
     jd_analysis: JDAnalysis,
     user_additions: str = "",
     model: str = DEFAULT_MODEL,
+    writing_preferences: dict[str, str] | None = None,
 ) -> ResumeContent:
     """Generate tailored resume content via Claude.
 
@@ -27,6 +28,11 @@ def generate_tailored_resume(
     """
     logger.info("Generating tailored resume content")
 
+    additions = user_additions
+    if writing_preferences:
+        pref_lines = "\n".join(f"- {k}: {v}" for k, v in writing_preferences.items())
+        additions += f"\n\nWriting Style Preferences (follow these strictly):\n{pref_lines}"
+
     response_text = call_llm(
         model=model,
         max_tokens=MAX_TOKENS_RESUME_GENERATION,
@@ -34,8 +40,9 @@ def generate_tailored_resume(
         user_content=RESUME_GENERATION_USER.format(
             resume_text=resume_text,
             jd_analysis=json.dumps(jd_analysis.to_dict(), indent=2),
-            user_additions=user_additions,
+            user_additions=additions,
         ),
+        purpose="resume generation",
     )
 
     try:

@@ -1468,7 +1468,11 @@ def generate(
         click.echo("Generating tailored resume content...")
         try:
             resume_data = generate_tailored_resume(
-                resume_text, jd_analysis, user_additions, model=model
+                resume_text,
+                jd_analysis,
+                user_additions,
+                model=model,
+                writing_preferences=prof.writing_preferences or None,
             )
         except Exception as e:
             logger.error("Resume generation failed: %s", e)
@@ -1486,7 +1490,11 @@ def generate(
                     click.echo("Retrying with Claude API...")
                     try:
                         resume_data = generate_tailored_resume(
-                            resume_text, jd_analysis, user_additions, model=model
+                            resume_text,
+                            jd_analysis,
+                            user_additions,
+                            model=model,
+                            writing_preferences=prof.writing_preferences or None,
                         )
                     except Exception as e2:
                         logger.error("Claude fallback also failed: %s", e2)
