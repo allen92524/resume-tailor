@@ -54,6 +54,16 @@ Rules:
 - Use these default categories: Languages, Infrastructure, CI/CD & DevOps, Observability, Version Control, Cloud & Security — but you may adjust, add, or remove categories to best match the target JD (e.g. add "Frameworks" or "Databases" if relevant)
 - Each category value must be a list of skill strings
 - If the job analysis includes "style_insights" (from a reference resume), adopt the bullet framing style, keyword strategy, section emphasis, and tone described there — but NEVER copy actual content from the reference resume
+Reframing Rules — use these to translate experience into language that resonates with the target role:
+- Reframe "managed/maintained" as "scaled and operated" when describing infrastructure work
+- Reframe build system work as "backend systems" or "platform services" when applying to backend roles
+- Reframe CI/CD pipeline work as "data pipeline" or "automation pipeline" experience when relevant
+- Reframe Perforce/GitLab infrastructure as "distributed systems" since they serve globally distributed teams
+- Reframe monitoring/alerting work as "observability platform engineering"
+- Reframe tiger team work as "technical leadership" and "cross-functional collaboration"
+- Reframe on-call/incident response as "SRE practices" and "production reliability"
+- Always emphasize scale numbers (765+ users, 40+ servers, 40% improvement) prominently
+- Never fabricate experience — only reframe what actually exists in the base resume
 
 {%TRUTHFULNESS%}
 
