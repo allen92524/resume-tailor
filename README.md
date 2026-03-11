@@ -321,6 +321,21 @@ make format        # Format code
 make check-secrets # Scan repo for personal info patterns
 ```
 
+### Recommended repo settings
+
+To ensure the auto-release workflow works correctly, configure your GitHub repo to use **Squash and merge** as the default merge strategy:
+
+1. Go to **Settings → General → Pull Requests**
+2. Uncheck "Allow merge commits" and "Allow rebase merging"
+3. Check **"Allow squash merging"** and set the default commit message to **"Pull request title"**
+
+With squash merging, the PR title becomes the merge commit message. Use [conventional commit](https://www.conventionalcommits.org/) prefixes in your PR titles:
+
+- `feat: ...` → triggers a **minor** version bump
+- `fix: ...` → triggers a **patch** version bump
+- `feat!: ...` or body contains `BREAKING CHANGE` → triggers a **major** version bump
+- Anything else → no release
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
