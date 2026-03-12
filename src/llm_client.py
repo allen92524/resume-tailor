@@ -10,6 +10,7 @@ import httpx
 
 from .config import (
     CLAUDE_MODEL,
+    CLAUDE_MODELS,
     DEFAULT_MODEL,
     OLLAMA_BASE_URL,
     OLLAMA_TIMEOUT,
@@ -33,6 +34,32 @@ def is_ollama_model(model: str) -> bool:
 def get_ollama_model_name(model: str) -> str:
     """Extract the Ollama model name from an 'ollama:name' string."""
     return model.split(":", 1)[1]
+
+
+def is_claude_model(model: str) -> bool:
+    """Check if a model string refers to a Claude model."""
+    return model == "claude" or model.startswith("claude:")
+
+
+def get_claude_display_name(model: str) -> str:
+    """Get a display name for a Claude model string (e.g. 'Claude Sonnet')."""
+    if model.startswith("claude:"):
+        variant = model.split(":", 1)[1]
+        return f"Claude {variant.capitalize()}"
+    return "Claude"
+
+
+def resolve_claude_model(model: str) -> str:
+    """Resolve a Claude model string to an API model ID.
+
+    'claude' -> default (Sonnet), 'claude:haiku' -> haiku model ID, etc.
+    """
+    if model == "claude":
+        return CLAUDE_MODEL
+    if model.startswith("claude:"):
+        variant = model.split(":", 1)[1]
+        return CLAUDE_MODELS.get(variant, CLAUDE_MODEL)
+    return model
 
 
 def list_ollama_models(base_url: str = OLLAMA_BASE_URL) -> list[dict]:
@@ -582,8 +609,8 @@ def call_llm(
         # Use existing Claude API with retry logic
         from .api import call_api
 
-        # Resolve "claude" shorthand to actual model ID
-        api_model = CLAUDE_MODEL if model == "claude" else model
+        # Resolve "claude" / "claude:<variant>" to actual model ID
+        api_model = resolve_claude_model(model)
         return call_api(
             model=api_model,
             max_tokens=max_tokens,

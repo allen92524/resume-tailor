@@ -335,15 +335,15 @@ class TestOllamaFallbackChain:
             assert result.exit_code != 0
             assert "switch to Claude" not in result.output
 
-    @patch("click.prompt", return_value="1")
+    @patch("click.prompt", side_effect=["1", "2"])  # 1=Claude, 2=Sonnet
     @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
     def test_user_selects_claude(self, mock_ollama, mock_prompt):
-        """User picks option 1 (Claude)."""
+        """User picks option 1 (Claude), then Sonnet variant."""
         result = select_model_interactive({})
-        assert result == "claude"
+        assert result == "claude:sonnet"
 
     @patch("click.prompt", return_value="2")
     @patch("src.commands.common.list_ollama_models", return_value=[
@@ -355,13 +355,14 @@ class TestOllamaFallbackChain:
         result = select_model_interactive({})
         assert result == "ollama:qwen3.5:latest"
 
-    @patch("click.prompt", return_value="1")
+    @patch("click.prompt", return_value="2")
     @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
     def test_saved_model_shown_as_default(self, mock_ollama, mock_prompt):
         """Saved model preference should be the default selection."""
+        # Ollama model saved — selecting it (option 2) skips Claude sub-menu
         select_model_interactive({"model": "ollama:qwen3.5:latest"})
         # The prompt was called with default="2" (the saved model's index)
         mock_prompt.assert_called_once()
@@ -376,8 +377,8 @@ class TestOllamaFallbackChain:
     def test_invalid_input_uses_default(self, mock_ollama, mock_prompt):
         """Invalid input should fall back to the default option."""
         result = select_model_interactive({})
-        # Default is option 1 (Claude)
-        assert result == "claude"
+        # Default is option 1 (Claude), then invalid also falls back to Sonnet
+        assert result == "claude:sonnet"
 
 
 class TestReviewCommand:

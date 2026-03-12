@@ -11,7 +11,7 @@ from src.config import (
     MAX_GAP_QUESTIONS,
     DEFAULT_OUTPUT_FORMAT,
 )
-from src.llm_client import is_ollama_model, get_ollama_model_name, prepare_ollama
+from src.llm_client import is_ollama_model, get_ollama_model_name, get_claude_display_name, prepare_ollama
 from src.models import (
     ResumeContent,
     JDAnalysis,
@@ -307,6 +307,10 @@ def generate(
         if has_profile_resume:
             resume_text = prof.base_resume
             click.echo(f"\nUsing profile resume for {profile_name}")
+            click.echo(click.style(
+                "  (Tip: run 'python src/main.py profile' to view or edit your profile)",
+                dim=True,
+            ))
         else:
             click.echo("\n--- Step 1: Your Resume ---")
             try:
@@ -517,7 +521,7 @@ def generate(
         click.echo("[DRY RUN] Loading mock JD analysis...")
         jd_analysis = JDAnalysis.from_dict(_load_mock_fixture("mock_jd_analysis.json"))
     else:
-        _model_label = get_ollama_model_name(model) if is_ollama_model(model) else "Claude"
+        _model_label = get_ollama_model_name(model) if is_ollama_model(model) else get_claude_display_name(model)
         click.echo(f"Analyzing job description using {_model_label}...")
         try:
             jd_analysis = analyze_jd(jd_text, reference_text=reference_text, model=model)
