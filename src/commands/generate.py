@@ -11,7 +11,7 @@ from src.config import (
     MAX_GAP_QUESTIONS,
     DEFAULT_OUTPUT_FORMAT,
 )
-from src.llm_client import is_ollama_model, get_ollama_model_name, get_claude_display_name, prepare_ollama
+from src.llm_client import is_ollama_model, get_ollama_model_name, get_claude_display_name, prepare_ollama, resolve_claude_model
 from src.models import (
     ResumeContent,
     JDAnalysis,
@@ -145,6 +145,11 @@ def generate(
                 sys.exit(1)
         else:
             validate_api_key()
+            try:
+                resolve_claude_model(model)
+            except ValueError as e:
+                click.echo(f"Error: {e}")
+                sys.exit(1)
 
     # Load or create profile (now uses the selected model for any LLM calls)
     prof = load_profile(pname)

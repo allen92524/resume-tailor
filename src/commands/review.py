@@ -5,7 +5,7 @@ import sys
 
 import click
 
-from src.llm_client import is_ollama_model, get_ollama_model_name, prepare_ollama
+from src.llm_client import is_ollama_model, get_ollama_model_name, prepare_ollama, resolve_claude_model
 from src.models import ReviewWeakness
 from src.resume_reviewer import (
     review_resume,
@@ -53,6 +53,11 @@ def review(ctx, model):
             sys.exit(1)
     else:
         validate_api_key()
+        try:
+            resolve_claude_model(model)
+        except ValueError as e:
+            click.echo(f"Error: {e}")
+            sys.exit(1)
 
     if not prof.base_resume:
         click.echo("Error: No base resume in your profile.")

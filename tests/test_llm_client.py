@@ -9,6 +9,7 @@ from src.llm_client import (
     call_llm,
     is_ollama_model,
     get_ollama_model_name,
+    resolve_claude_model,
     _call_ollama,
     _Spinner,
     check_ollama_ready,
@@ -23,6 +24,7 @@ from src.llm_client import (
     check_context_window,
     validate_response_length,
 )
+from src.config import CLAUDE_MODELS
 
 
 class TestModelDetection:
@@ -914,3 +916,84 @@ class TestHardTimeout:
         call_kwargs = mock_post.call_args.kwargs
         # OLLAMA_TIMEOUT=300, OLLAMA_HARD_TIMEOUT=120 => min=120
         assert call_kwargs["timeout"] == 120.0
+
+
+class TestResolveClaudeModel:
+    """Test resolve_claude_model() variant resolution and validation."""
+
+    def test_resolves_bare_claude(self):
+        result = resolve_claude_model("claude")
+        assert result == "claude-sonnet-4-5-20250929"
+
+    def test_resolves_haiku(self):
+        result = resolve_claude_model("claude:haiku")
+        assert "haiku" in result
+
+    def test_resolves_sonnet(self):
+        result = resolve_claude_model("claude:sonnet")
+        assert "sonnet" in result
+
+    def test_resolves_opus(self):
+        result = resolve_claude_model("claude:opus")
+        assert "opus" in result
+
+    def test_rejects_unknown_variant(self):
+        with pytest.raises(ValueError, match="Unknown Claude variant 'blahblah'"):
+            resolve_claude_model("claude:blahblah")
+
+    def test_rejects_typo_variant(self):
+        with pytest.raises(ValueError, match="Unknown Claude variant"):
+            resolve_claude_model("claude:soonet")
+
+    def test_passthrough_full_model_id(self):
+        """Full model IDs (not claude: prefixed) pass through unchanged."""
+        result = resolve_claude_model("claude-sonnet-4-5-20250929")
+        assert result == "claude-sonnet-4-5-20250929"
+
+    def test_error_message_lists_valid_options(self):
+        with pytest.raises(ValueError, match="haiku") as exc_info:
+            resolve_claude_model("claude:invalid")
+        msg = str(exc_info.value)
+        assert "haiku" in msg
+        assert "sonnet" in msg
+        assert "opus" in msg
+
+
+class TestClaudeModelNotFound:
+    """Test graceful handling when API returns 404 for a model."""
+
+    @patch("src.api.call_api")
+    def test_notfound_raises_runtime_error(self, mock_api):
+        import anthropic
+        mock_api.side_effect = anthropic.NotFoundError(
+            message="model not found",
+            response=MagicMock(status_code=404),
+            body={"type": "error", "error": {"type": "not_found_error", "message": "model not found"}},
+        )
+
+        with pytest.raises(RuntimeError, match="was not found by the Anthropic API"):
+            call_llm(system="sys", user_content="hi", model="claude")
+
+
+class TestClaudeModelIdsValid:
+    """Integration test: verify configured model IDs exist in the Anthropic API.
+
+    Skipped when ANTHROPIC_API_KEY is not set (e.g. in CI).
+    Run locally with: pytest tests/test_llm_client.py -k 'test_claude_model_ids' -v
+    """
+
+    @pytest.mark.skipif(
+        not __import__("os").environ.get("ANTHROPIC_API_KEY"),
+        reason="No ANTHROPIC_API_KEY — skipping integration test",
+    )
+    @pytest.mark.parametrize("variant,model_id", CLAUDE_MODELS.items())
+    def test_claude_model_ids_are_valid(self, variant, model_id):
+        """Each configured model ID should return a valid response from the API."""
+        import anthropic
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model=model_id,
+            max_tokens=1,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        assert response.content, f"Model '{variant}' ({model_id}) returned empty response"
