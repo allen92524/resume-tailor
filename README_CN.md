@@ -42,16 +42,16 @@ docker compose run --rm resume-tailor
 从 https://ollama.com/download 安装 Ollama，然后：
 
 ```bash
-ollama pull qwen3.5
+ollama pull gemma3
 
 # Linux / WSL2
 docker run -it --rm --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+  resume-tailor-resume-tailor generate --model ollama:gemma3
 
 # macOS / Windows
-docker compose run --rm resume-tailor generate --model ollama:qwen3.5
+docker compose run --rm resume-tailor generate --model ollama:gemma3
 ```
 
 > Docker 容器会连接到你电脑上运行的 Ollama。LLM 模型不会存储在容器中。
@@ -234,14 +234,14 @@ docker run -it --rm \
   --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 
 # Ollama（macOS/Windows Docker Desktop — 使用 host.docker.internal）
 docker run -it --rm \
   -e OLLAMA_HOST=http://host.docker.internal:11434 \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 ```
 
 > LLM 模型不会存储在容器中。Docker 镜像连接到你主机上运行的 Ollama。生成的文件会自动设置为你的用户权限（不是 root）。

@@ -42,16 +42,16 @@ docker compose run --rm resume-tailor
 Install Ollama from https://ollama.com/download, then:
 
 ```bash
-ollama pull qwen3.5
+ollama pull gemma3
 
 # Linux / WSL2
 docker run -it --rm --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+  resume-tailor-resume-tailor generate --model ollama:gemma3
 
 # macOS / Windows
-docker compose run --rm resume-tailor generate --model ollama:qwen3.5
+docker compose run --rm resume-tailor generate --model ollama:gemma3
 ```
 
 > The Docker container connects to Ollama running on your machine. No LLM models are stored inside the container.
@@ -234,14 +234,14 @@ docker run -it --rm \
   --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 
 # Ollama (macOS/Windows Docker Desktop — uses host.docker.internal)
 docker run -it --rm \
   -e OLLAMA_HOST=http://host.docker.internal:11434 \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 ```
 
 > No LLM models are stored inside the container. The Docker image connects to Ollama running on your host machine. Generated files are automatically owned by your user (not root).

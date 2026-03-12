@@ -51,7 +51,7 @@ format: ## Run black formatter
 run: ## Activate venv and run generate
 	$(PYTHON) src/main.py generate
 
-run-local: ## Run generate with local Ollama model (e.g. make run-local MODEL=ollama:qwen3.5)
+run-local: ## Run generate with local Ollama model (e.g. make run-local MODEL=ollama:gemma3)
 	@test -n "$(MODEL)" || (echo "Usage: make run-local MODEL=ollama:<model-name>" && exit 1)
 	$(PYTHON) src/main.py generate --model $(MODEL)
 
@@ -79,7 +79,7 @@ docker-run: ## Run Docker container with Claude API
 		-v $(PWD)/output:/output \
 		resume-tailor generate
 
-docker-ollama: ## Run Docker + host Ollama (e.g. make docker-ollama MODEL=ollama:qwen3.5)
+docker-ollama: ## Run Docker + host Ollama (e.g. make docker-ollama MODEL=ollama:gemma3)
 	@test -n "$(MODEL)" || (echo "Usage: make docker-ollama MODEL=ollama:<model-name>" && echo "  Requires Ollama running on your machine (ollama serve)" && exit 1)
 	docker run -it --rm \
 		--network host \

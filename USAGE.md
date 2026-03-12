@@ -193,7 +193,7 @@ The tool will:
 ### Review using a local model
 
 ```bash
-python src/main.py review --model ollama:qwen3.5
+python src/main.py review --model ollama:gemma3
 ```
 
 ---
@@ -233,14 +233,14 @@ brew install ollama
 ### Download a model and run
 
 ```bash
-ollama pull qwen3.5
-python src/main.py generate --model ollama:qwen3.5
+ollama pull gemma3
+python src/main.py generate --model ollama:gemma3
 ```
 
 No API key needed. The `--model` flag works with both `generate` and `review`:
 
 ```bash
-python src/main.py review --model ollama:qwen3.5
+python src/main.py review --model ollama:gemma3
 ```
 
 On startup, Resume Tailor will automatically check Ollama connectivity, validate that the model is available, and warm up the model by loading it into memory. You can configure the timeout via the `OLLAMA_TIMEOUT` environment variable (default: 300 seconds).
@@ -251,9 +251,9 @@ Any Ollama model works. Some good choices:
 
 | Model | Command | Notes |
 |-------|---------|-------|
-| Qwen 3.5 | `--model ollama:qwen3.5` | Good all-around, recommended |
+| Gemma 3 | `--model ollama:gemma3` | Good all-around, recommended |
 | Devstral | `--model ollama:devstral` | Strong at technical resumes |
-| Gemma 3 | `--model ollama:gemma3` | Lightweight, faster |
+| Qwen 3.5 | `--model ollama:qwen3.5` | Alternative general-purpose |
 
 ### Test without any AI
 
@@ -281,18 +281,18 @@ docker compose run --rm resume-tailor
 The Docker container connects to Ollama running on your machine — no LLM models are stored inside the container.
 
 1. Install and start Ollama on your machine: https://ollama.com/download
-2. Pull a model: `ollama pull qwen3.5`
+2. Pull a model: `ollama pull gemma3`
 3. Run:
 
 ```bash
 # macOS / Windows Docker Desktop
-docker compose run --rm resume-tailor generate --model ollama:qwen3.5
+docker compose run --rm resume-tailor generate --model ollama:gemma3
 
 # Linux / WSL2 (use --network host because Ollama binds to localhost only)
 docker run -it --rm --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+  resume-tailor-resume-tailor generate --model ollama:gemma3
 ```
 
 > **Why the difference?** On macOS/Windows, Docker Desktop provides `host.docker.internal` which routes to the host automatically. On Linux/WSL2, Ollama only listens on `127.0.0.1`, so Docker containers can't reach it through bridge networking. `--network host` lets the container share the host's network, making `localhost` work directly.
@@ -322,7 +322,7 @@ docker run -it --rm \
   -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 
 # Ollama (macOS/Windows Docker Desktop — uses host.docker.internal)
 docker run -it --rm \
@@ -330,7 +330,7 @@ docker run -it --rm \
   -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 ```
 
 ---
@@ -394,12 +394,12 @@ curl -X POST http://localhost:8000/api/v1/review \
 
 ### Using Ollama with the API
 
-Pass `"model": "ollama:qwen3.5"` in any request body:
+Pass `"model": "ollama:gemma3"` in any request body:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/analyze-jd \
   -H "Content-Type: application/json" \
-  -d '{"jd_text": "We are looking for...", "model": "ollama:qwen3.5"}'
+  -d '{"jd_text": "We are looking for...", "model": "ollama:gemma3"}'
 ```
 
 ---
@@ -616,14 +616,14 @@ Run `make help` to see this list in your terminal.
 | `make lint` | Check code for style issues |
 | `make format` | Auto-format code |
 | `make run` | Run the generate command |
-| `make run-local MODEL=ollama:qwen3.5` | Run with a local Ollama model |
+| `make run-local MODEL=ollama:gemma3` | Run with a local Ollama model |
 | `make run-profile PROFILE=name` | Run with a specific profile |
 | `make dry-run` | Test the full flow with mock data |
 | `make api` | Start the REST API server on port 8000 |
 | `make metrics` | Fetch metrics from the running API |
 | `make docker-build` | Build the Docker image |
 | `make docker-run` | Run the Docker container (Claude API) |
-| `make docker-ollama MODEL=ollama:qwen3.5` | Run Docker with local Ollama |
+| `make docker-ollama MODEL=ollama:gemma3` | Run Docker with local Ollama |
 | `make test-docker` | Build and smoke-test the Docker image |
 | `make helm-install` | Deploy to Kubernetes via Helm |
 | `make helm-uninstall` | Remove Kubernetes deployment |
@@ -651,7 +651,7 @@ export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 Get a key at https://console.anthropic.com/settings/keys. If you don't want to pay for an API key, use a local model instead:
 
 ```bash
-python src/main.py generate --model ollama:qwen3.5
+python src/main.py generate --model ollama:gemma3
 ```
 
 ### "Invalid API key"
@@ -702,10 +702,10 @@ On Linux and WSL2, Ollama only listens on `127.0.0.1` by default. Docker contain
 docker run -it --rm --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+  resume-tailor-resume-tailor generate --model ollama:gemma3
 ```
 
-Or use the Makefile shortcut: `make docker-ollama MODEL=ollama:qwen3.5`
+Or use the Makefile shortcut: `make docker-ollama MODEL=ollama:gemma3`
 
 This is not needed on macOS/Windows Docker Desktop, where `host.docker.internal` works natively.
 
@@ -727,12 +727,12 @@ Local inference is slow, especially on CPU. Try:
    ```
 2. **Use a smaller model** — smaller models are much faster on CPU:
    ```bash
+   python src/main.py generate --model ollama:gemma3:1b
    python src/main.py generate --model ollama:qwen3.5:1.5b
-   python src/main.py generate --model ollama:gemma3
    ```
 3. **Pre-load the model** — the first run is slowest because the model must load into memory. Resume Tailor now warms up the model automatically, but you can also do it manually:
    ```bash
-   ollama run qwen3.5 "hi"
+   ollama run gemma3 "hi"
    ```
 
 ### Ollama model not found
@@ -740,7 +740,7 @@ Local inference is slow, especially on CPU. Try:
 If you see "Model 'xyz' not found", pull it first:
 
 ```bash
-ollama pull qwen3.5
+ollama pull gemma3
 ```
 
 List available models:
@@ -753,7 +753,7 @@ ollama list
 
 Large models need lots of RAM. If you're running out of memory:
 
-- Use a smaller model (e.g., `ollama:qwen3.5:1.5b` or `ollama:gemma3`)
+- Use a smaller model (e.g., `ollama:gemma3:1b` or `ollama:qwen3.5:1.5b`)
 - Close other applications to free RAM
 
 ### Ollama returns malformed JSON

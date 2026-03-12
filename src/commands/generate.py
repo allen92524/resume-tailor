@@ -904,7 +904,8 @@ def generate(
     if not prefs.get("format"):
         save_preferences(prof, output_format, output_path, pname)
 
-    # Offer to open the file(s)
-    if click.confirm("\nOpen file?", default=False):
-        for fp in filepaths:
-            open_file(fp)
+    # Offer to open the file(s) — skip in Docker (no GUI available)
+    if not os.path.exists("/.dockerenv"):
+        if click.confirm("\nOpen file?", default=False):
+            for fp in filepaths:
+                open_file(fp)
