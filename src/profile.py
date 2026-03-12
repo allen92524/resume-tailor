@@ -237,7 +237,7 @@ def _ask_weakness_questions(
         click.echo("")
 
     # Also handle improved bullet placeholders
-    from src.main import _fill_review_placeholders  # noqa: E402
+    from src.commands.common import fill_review_placeholders as _fill_review_placeholders  # noqa: E402
 
     review = _fill_review_placeholders(review)
     for b in review.improved_bullets:

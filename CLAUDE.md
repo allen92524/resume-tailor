@@ -219,3 +219,7 @@ python src/main.py generate
 - Output goes to the `output/` directory with timestamped filenames
 - ATS-friendly formatting is critical - no fancy layouts, no tables for structure
 - The tool is for personal use to help with job applications
+
+## Project Context
+Read CONVERSATION_CONTEXT.md for the full history of design decisions and project philosophy.
+
