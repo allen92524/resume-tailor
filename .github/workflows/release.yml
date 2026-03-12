@@ -23,8 +23,8 @@ jobs:
         id: bump
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
           FIRST_LINE=$(echo "$COMMIT_MSG" | head -n 1)
           BUMP="skip"
 
@@ -83,12 +83,17 @@ jobs:
       - name: Calculate new version
         if: steps.bump.outputs.type != 'skip'
         id: version
+        env:
+          BUMP_TYPE: ${{ steps.bump.outputs.type }}
         run: |
           # Get current version from the latest git tag
-          CURRENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || cat VERSION | tr -d '[:space:]')
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -n "$LATEST_TAG" ]; then
+            CURRENT_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+          else
+            CURRENT_VERSION=$(cat VERSION | tr -d '[:space:]')
+          fi
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-
-          BUMP_TYPE="${{ steps.bump.outputs.type }}"
           case "$BUMP_TYPE" in
             patch) PATCH=$((PATCH + 1)) ;;
             minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
@@ -105,9 +110,9 @@ jobs:
         if: steps.bump.outputs.type != 'skip'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ github.sha }}
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          SHA="${{ github.sha }}"
           echo "Creating tag $TAG at commit $SHA"
           gh api repos/${{ github.repository }}/git/refs \
             -f ref="refs/tags/$TAG" \
@@ -117,7 +122,8 @@ jobs:
         if: steps.bump.outputs.type != 'skip'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create ${{ steps.version.outputs.tag }} \
-            --title "${{ steps.version.outputs.tag }}" \
+          gh release create "$TAG" \
+            --title "$TAG" \
             --generate-notes
