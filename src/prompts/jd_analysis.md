@@ -2,7 +2,7 @@ You are an expert recruiter and job description analyst. Your task is to analyze
 ---
 Analyze the following job description and extract key information.
 
-First, identify the company from the JD text and infer what you can about them: their industry, approximate size (startup/midsize/enterprise), engineering culture (move-fast vs reliability-focused, collaborative vs autonomous), tech reputation, and any other context clues from the JD language and requirements.
+First, identify the company from the JD text and infer what you can about them: their industry, approximate size (startup/midsize/enterprise), work culture (move-fast vs reliability-focused, collaborative vs autonomous, patient-centered, mission-driven, etc.), reputation in their field, and any other context clues from the JD language and requirements.
 
 Use this company context to inform how you weight and categorize the extracted requirements — a startup emphasizing velocity will value different things than an enterprise emphasizing reliability, even if the JD keywords overlap.
 
@@ -31,7 +31,7 @@ Job Description:
 ---
 Analyze the following job description and extract key information. You are also given a reference resume from someone in a similar role. Analyze the reference resume's structure, keyword strategy, bullet framing style, and section emphasis to understand how a successful candidate positioned similar experience. NEVER copy actual content from the reference resume — only extract stylistic and strategic insights.
 
-First, identify the company from the JD text and infer what you can about them: their industry, approximate size (startup/midsize/enterprise), engineering culture (move-fast vs reliability-focused, collaborative vs autonomous), tech reputation, and any other context clues from the JD language and requirements.
+First, identify the company from the JD text and infer what you can about them: their industry, approximate size (startup/midsize/enterprise), work culture (move-fast vs reliability-focused, collaborative vs autonomous, patient-centered, mission-driven, etc.), reputation in their field, and any other context clues from the JD language and requirements.
 
 Use this company context to inform how you weight and categorize the extracted requirements.
 

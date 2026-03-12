@@ -29,8 +29,8 @@ Rules:
   - GOOD (healthcare): "How many patients did you manage per shift? (e.g. 5, 10, 20+)"
   - GOOD (sales): "What was your quarterly quota? (e.g. $200K, $500K, $1M+)"
   - GOOD (any): "What was the improvement? (e.g. 30% faster, saved 2 hours per week, reduced errors by half)"
-  - BAD: "Describe your measurable impact on infrastructure"
-  - BAD: "Tell me about your experience with distributed systems"
+  - BAD: "Describe your measurable impact" (too vague, no example answers)
+  - BAD: "Tell me about your experience" (open-ended, not concrete)
 - For each gap, include "adjacent_skills": 2-3 related skills or experiences that could partially satisfy this requirement. These should be realistic alternatives someone might have even if they lack the exact skill. Tailor these to the candidate's actual profession.
   - Example (engineering): if the gap is "Kubernetes", adjacent_skills might be ["Docker", "ECS/Fargate", "container orchestration"]
   - Example (healthcare): if the gap is "ICU experience", adjacent_skills might be ["critical care training", "emergency department", "post-surgical care"]

@@ -35,6 +35,17 @@ _ROLE_ABBREVIATIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bAdministrator\b", re.I), "Admin"),
     (re.compile(r"\bDirector\b", re.I), "Dir"),
     (re.compile(r"\bVice President\b", re.I), "VP"),
+    (re.compile(r"\bAssistant\b", re.I), "Asst"),
+    (re.compile(r"\bAssociate\b", re.I), "Assoc"),
+    (re.compile(r"\bCoordinator\b", re.I), "Coord"),
+    (re.compile(r"\bSpecialist\b", re.I), "Spec"),
+    (re.compile(r"\bConsultant\b", re.I), "Consult"),
+    (re.compile(r"\bRepresentative\b", re.I), "Rep"),
+    (re.compile(r"\bSupervisor\b", re.I), "Supv"),
+    (re.compile(r"\bTechnician\b", re.I), "Tech"),
+    (re.compile(r"\bProfessor\b", re.I), "Prof"),
+    (re.compile(r"\bLieutenant\b", re.I), "Lt"),
+    (re.compile(r"\bSergeant\b", re.I), "Sgt"),
 ]
 
 
@@ -362,6 +373,30 @@ def _build_docx_file(resume_data: ResumeContent, filepath: str) -> None:
         for cert in resume_data.certifications:
             _add_bullet_paragraph(doc, cert)
 
+    # --- Licenses ---
+    if resume_data.licenses:
+        _add_section_heading(doc, "Licenses")
+        for lic in resume_data.licenses:
+            _add_bullet_paragraph(doc, lic)
+
+    # --- Publications ---
+    if resume_data.publications:
+        _add_section_heading(doc, "Publications")
+        for pub in resume_data.publications:
+            _add_bullet_paragraph(doc, pub)
+
+    # --- Awards ---
+    if resume_data.awards:
+        _add_section_heading(doc, "Awards")
+        for award in resume_data.awards:
+            _add_bullet_paragraph(doc, award)
+
+    # --- Volunteer ---
+    if resume_data.volunteer:
+        _add_section_heading(doc, "Volunteer Experience")
+        for vol in resume_data.volunteer:
+            _add_bullet_paragraph(doc, vol)
+
     doc.save(filepath)
     logger.debug("DOCX saved: %s", filepath)
 
@@ -461,6 +496,34 @@ def _build_markdown(resume_data: ResumeContent, filepath: str) -> None:
         lines.append("")
         for cert in resume_data.certifications:
             lines.append(f"- {cert}")
+        lines.append("")
+
+    if resume_data.licenses:
+        lines.append("## Licenses")
+        lines.append("")
+        for lic in resume_data.licenses:
+            lines.append(f"- {lic}")
+        lines.append("")
+
+    if resume_data.publications:
+        lines.append("## Publications")
+        lines.append("")
+        for pub in resume_data.publications:
+            lines.append(f"- {pub}")
+        lines.append("")
+
+    if resume_data.awards:
+        lines.append("## Awards")
+        lines.append("")
+        for award in resume_data.awards:
+            lines.append(f"- {award}")
+        lines.append("")
+
+    if resume_data.volunteer:
+        lines.append("## Volunteer Experience")
+        lines.append("")
+        for vol in resume_data.volunteer:
+            lines.append(f"- {vol}")
         lines.append("")
 
     with open(filepath, "w", encoding="utf-8") as f:
