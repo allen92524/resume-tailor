@@ -5,6 +5,9 @@ services:
     tty: true
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux support
     volumes:
       - ~/.resume-tailor:/root/.resume-tailor
       - ./output:/output

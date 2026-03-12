@@ -265,26 +265,46 @@ python src/main.py generate --dry-run
 
 ## 我想在 Docker 里运行
 
-Docker 仅支持 Claude API。Ollama（免费本地模型）仅在不使用 Docker 的本地安装中支持——参见[我想用免费的本地模型替代 Claude](#我想用免费的本地模型替代-claude)。
-
-> **为什么 Docker 不支持 Ollama？** LLM 模型是数 GB 的大文件。在容器内运行意味着巨大的镜像、缓慢的拉取和沉重的资源消耗。直接在你的电脑上运行 Ollama 效果更好。
+Docker 是运行 Resume Tailor 最简单的方式——包含 Python、所有依赖和 LibreOffice PDF 输出。除了 Docker 本身，无需安装任何东西。
 
 ### Docker + Claude API
 
 ```bash
+export ANTHROPIC_API_KEY="sk-ant-你的密钥"
+docker compose run --rm resume-tailor
+```
+
+### Docker + Ollama（免费）
+
+Docker 容器会连接到你电脑上运行的 Ollama——LLM 模型不会存储在容器中。
+
+1. 在你的电脑上安装并启动 Ollama：https://ollama.com/download
+2. 下载模型：`ollama pull qwen3.5`
+3. 运行：
+
+```bash
+docker compose run --rm resume-tailor generate --model ollama:qwen3.5
+```
+
+### 手动 docker run（不使用 Compose）
+
+```bash
 docker build -t resume-tailor .
 
-docker run -it \
+# Claude API
+docker run -it --rm \
   -e ANTHROPIC_API_KEY="sk-ant-你的密钥" \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
-```
 
-或者用 Docker Compose：
-
-```bash
-docker compose run --rm resume-tailor
+# Ollama（连接到主机）
+docker run -it --rm \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  --add-host=host.docker.internal:host-gateway \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
 ```
 
 ---
@@ -576,7 +596,8 @@ make release-push
 | `make api` | 在 8000 端口启动 REST API 服务器 |
 | `make metrics` | 从运行中的 API 获取指标 |
 | `make docker-build` | 构建 Docker 镜像 |
-| `make docker-run` | 运行 Docker 容器 |
+| `make docker-run` | 运行 Docker 容器（Claude API） |
+| `make docker-ollama MODEL=ollama:qwen3.5` | 使用本地 Ollama 运行 Docker |
 | `make test-docker` | 构建并测试 Docker 镜像 |
 | `make helm-install` | 通过 Helm 部署到 Kubernetes |
 | `make helm-uninstall` | 移除 Kubernetes 部署 |

@@ -267,26 +267,46 @@ Uses mock responses so you can test the full flow without spending credits or ne
 
 ## I want to run everything in Docker
 
-Docker uses the Claude API only. Ollama (free local models) is supported when running locally without Docker — see [I want to use a free local model instead of Claude](#i-want-to-use-a-free-local-model-instead-of-claude).
-
-> **Why no Ollama in Docker?** LLM models are multi-gigabyte files. Running them inside containers means huge images, slow pulls, and heavy resource usage. It's much better to run Ollama directly on your machine.
+Docker is the easiest way to run Resume Tailor — it includes Python, all dependencies, and LibreOffice for PDF output. No setup required beyond Docker itself.
 
 ### Docker + Claude API
 
 ```bash
+export ANTHROPIC_API_KEY="sk-ant-your-key"
+docker compose run --rm resume-tailor
+```
+
+### Docker + Ollama (free)
+
+The Docker container connects to Ollama running on your machine — no LLM models are stored inside the container.
+
+1. Install and start Ollama on your machine: https://ollama.com/download
+2. Pull a model: `ollama pull qwen3.5`
+3. Run:
+
+```bash
+docker compose run --rm resume-tailor generate --model ollama:qwen3.5
+```
+
+### Manual docker run (without Compose)
+
+```bash
 docker build -t resume-tailor .
 
-docker run -it \
+# Claude API
+docker run -it --rm \
   -e ANTHROPIC_API_KEY="sk-ant-your-key" \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
-```
 
-Or use Docker Compose:
-
-```bash
-docker compose run --rm resume-tailor
+# Ollama (connects to host)
+docker run -it --rm \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  --add-host=host.docker.internal:host-gateway \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
 ```
 
 ---
@@ -578,7 +598,8 @@ Run `make help` to see this list in your terminal.
 | `make api` | Start the REST API server on port 8000 |
 | `make metrics` | Fetch metrics from the running API |
 | `make docker-build` | Build the Docker image |
-| `make docker-run` | Run the Docker container |
+| `make docker-run` | Run the Docker container (Claude API) |
+| `make docker-ollama MODEL=ollama:qwen3.5` | Run Docker with local Ollama |
 | `make test-docker` | Build and smoke-test the Docker image |
 | `make helm-install` | Deploy to Kubernetes via Helm |
 | `make helm-uninstall` | Remove Kubernetes deployment |
