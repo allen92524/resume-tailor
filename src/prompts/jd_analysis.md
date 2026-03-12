@@ -13,8 +13,8 @@ Respond with valid JSON matching this exact structure:
   "company_context": {{
     "industry": "string — the company's industry or domain",
     "company_size": "startup | midsize | enterprise | unknown",
-    "engineering_culture": "string — inferred culture (e.g. move-fast, reliability-focused, research-oriented)",
-    "tech_reputation": "string — what the company is known for technically, or 'unknown'",
+    "work_culture": "string — inferred culture (e.g. move-fast, reliability-focused, research-oriented, patient-centered, mission-driven)",
+    "reputation": "string — what the organization is known for in its field, or 'unknown'",
     "culture_notes": "string — any other relevant context about what this company values"
   }},
   "required_skills": ["list of required technical and soft skills"],
@@ -42,8 +42,8 @@ Respond with valid JSON matching this exact structure:
   "company_context": {{
     "industry": "string — the company's industry or domain",
     "company_size": "startup | midsize | enterprise | unknown",
-    "engineering_culture": "string — inferred culture (e.g. move-fast, reliability-focused, research-oriented)",
-    "tech_reputation": "string — what the company is known for technically, or 'unknown'",
+    "work_culture": "string — inferred culture (e.g. move-fast, reliability-focused, research-oriented, patient-centered, mission-driven)",
+    "reputation": "string — what the organization is known for in its field, or 'unknown'",
     "culture_notes": "string — any other relevant context about what this company values"
   }},
   "required_skills": ["list of required technical and soft skills"],
