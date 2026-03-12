@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run docker-ollama docker-ollama-api docker-ollama-pull test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -78,21 +78,9 @@ docker-run: ## Run Docker container with interactive mode
 		-v $(PWD)/output:/output \
 		resume-tailor generate
 
-docker-ollama: ## Run CLI + Ollama together (no API key needed)
-	docker compose -f docker-compose.full.yml run --rm --remove-orphans resume-tailor
-
-docker-ollama-api: ## Start API server + Ollama together
-	docker compose -f docker-compose.full.yml --profile api up --remove-orphans
-
-docker-ollama-pull: ## Pull a model into the Ollama container (e.g. make docker-ollama-pull MODEL=qwen3.5)
-	@test -n "$(MODEL)" || (echo "Usage: make docker-ollama-pull MODEL=<model-name>" && exit 1)
-	docker compose -f docker-compose.full.yml exec ollama ollama pull $(MODEL)
-
 test-docker: docker-build ## Build and smoke-test Docker image
 	@echo "==> Testing dry-run (no API key needed)..."
 	docker run --rm resume-tailor generate --dry-run
-	@echo "==> Testing container starts with ollama model flag (no API key)..."
-	docker run --rm -e ANTHROPIC_API_KEY= resume-tailor generate --model ollama:qwen3.5 --dry-run
 	@echo "==> Testing health endpoint..."
 	@CONTAINER_ID=$$(docker run -d --rm -p 18199:8000 resume-tailor sh -c "pip install -q uvicorn fastapi prometheus-client opentelemetry-api opentelemetry-sdk opentelemetry-instrumentation-fastapi 2>/dev/null && python -m uvicorn src.web:app --host 0.0.0.0 --port 8000"); \
 	sleep 3; \

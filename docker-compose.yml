@@ -3,11 +3,8 @@ services:
     build: .
     stdin_open: true
     tty: true
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OLLAMA_HOST=http://host.docker.internal:11434
     volumes:
       - ~/.resume-tailor:/root/.resume-tailor
       - ./output:/output

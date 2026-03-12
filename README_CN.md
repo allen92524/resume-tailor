@@ -37,11 +37,11 @@
 
 ## 快速开始
 
-从以下三个选项中选择**一个**。如果你不想付费购买 API 密钥，选项 B 最简单。
+从以下两个选项中选择**一个**。如果你想修改代码或使用免费本地模型，选项 B 最合适。
 
 ---
 
-### 选项 A：Docker + Claude API（最佳质量）
+### 选项 A：Docker + Claude API（推荐）
 
 Claude 生成的简历质量最好。你需要一个 API 密钥（每份简历约 ¥0.07-0.35）。
 
@@ -79,37 +79,9 @@ docker run -it `
 
 ---
 
-### 选项 B：Docker + Ollama（免费，本地运行）
-
-无需 API 密钥、无需账号、无需花钱。所有内容都在你的电脑上运行。需要约 4 GB 内存。
-
-**1. 克隆并启动**
-
-```bash
-git clone https://github.com/allen92524/resume-tailor.git
-cd resume-tailor
-
-# 启动 Ollama 容器（首次运行下载约 2 GB）
-docker compose -f docker-compose.full.yml up -d ollama
-```
-
-**2. 下载模型**（一次性操作，约 2 GB）
-
-```bash
-docker compose -f docker-compose.full.yml exec ollama ollama pull qwen3.5
-```
-
-**3. 生成你的第一份简历**
-
-```bash
-docker compose -f docker-compose.full.yml run --rm resume-tailor
-```
-
----
-
 ### 在 Docker 中访问本地文件
 
-使用 Docker 运行时（选项 A 或 B），你的 **Downloads**、**Desktop** 和 **Documents** 文件夹会自动以只读方式挂载到容器中。你可以直接使用原始路径引用文件，路径会自动转换：
+你的 **Downloads**、**Desktop** 和 **Documents** 文件夹会自动以只读方式挂载到容器中。你可以直接使用原始路径引用文件，路径会自动转换：
 
 ```
 ~/Downloads/resume.pdf       → /mnt/downloads/resume.pdf
@@ -121,9 +93,11 @@ docker compose -f docker-compose.full.yml run --rm resume-tailor
 
 ---
 
-### 选项 C：本地安装（无需 Docker）
+### 选项 B：本地安装（无需 Docker）
 
-适合想修改代码或不想用 Docker 的用户。
+适合想修改代码、使用免费本地模型（Ollama）或不想用 Docker 的用户。
+
+> **注意：** Ollama（免费本地模型）仅在本地安装时支持，不支持在 Docker 内运行。LLM 模型体积太大，无法在容器内高效运行。
 
 **1. 克隆并安装**
 
@@ -227,7 +201,7 @@ Done! Your tailored resume has been saved to:
 - **多档案支持** — 在同一台电脑上为不同人管理简历
 - **会话恢复** — 使用 `--resume-session` 重新运行，尝试不同的回答
 - **试运行模式** — 无需消耗 API 额度即可测试完整流程
-- **本地或云端 AI** — 使用 Claude API 或免费的本地 Ollama 模型
+- **本地或云端 AI** — 使用 Claude API 或免费的本地 Ollama 模型（仅限本地安装）
 
 ## 命令
 

@@ -235,6 +235,10 @@ Uses mock responses so you can test the full flow without spending credits or ne
 
 ## I want to run everything in Docker
 
+Docker uses the Claude API only. Ollama (free local models) is supported when running locally without Docker — see [I want to use a free local model instead of Claude](#i-want-to-use-a-free-local-model-instead-of-claude).
+
+> **Why no Ollama in Docker?** LLM models are multi-gigabyte files. Running them inside containers means huge images, slow pulls, and heavy resource usage. It's much better to run Ollama directly on your machine.
+
 ### Docker + Claude API
 
 ```bash
@@ -247,38 +251,11 @@ docker run -it \
   resume-tailor generate --format pdf --output /output/
 ```
 
-Or use Docker Compose (connects to Ollama running on your machine):
+Or use Docker Compose:
 
 ```bash
 docker compose run --rm resume-tailor
 ```
-
-### Docker + Ollama (everything containerized)
-
-No need to install anything on your machine except Docker.
-
-```bash
-# Start Ollama container
-docker compose -f docker-compose.full.yml up -d ollama
-
-# Download a model (one-time)
-docker compose -f docker-compose.full.yml exec ollama ollama pull qwen3.5
-
-# Generate a resume
-docker compose -f docker-compose.full.yml run --rm resume-tailor
-
-# Or use Makefile shortcuts
-make docker-ollama-pull MODEL=qwen3.5
-make docker-ollama
-```
-
-### Docker + API server + Ollama
-
-```bash
-make docker-ollama-api
-```
-
-This starts both the Ollama model server and the Resume Tailor REST API. The API is available at http://localhost:8000.
 
 ---
 
@@ -570,9 +547,6 @@ Run `make help` to see this list in your terminal.
 | `make metrics` | Fetch metrics from the running API |
 | `make docker-build` | Build the Docker image |
 | `make docker-run` | Run the Docker container |
-| `make docker-ollama` | Run CLI + Ollama together in Docker |
-| `make docker-ollama-api` | Start API + Ollama together in Docker |
-| `make docker-ollama-pull MODEL=qwen3.5` | Download a model into the Ollama container |
 | `make test-docker` | Build and smoke-test the Docker image |
 | `make helm-install` | Deploy to Kubernetes via Helm |
 | `make helm-uninstall` | Remove Kubernetes deployment |
@@ -641,12 +615,6 @@ curl http://localhost:11434/api/tags
 ollama serve
 ```
 
-If using Docker Compose, make sure the Ollama container is healthy:
-
-```bash
-docker compose -f docker-compose.full.yml ps
-```
-
 ### Ollama request times out
 
 Local inference is slow, especially on CPU. Try:
@@ -681,11 +649,10 @@ ollama list
 
 ### Ollama out of memory
 
-Large models need lots of RAM. The `docker-compose.full.yml` sets an 8GB limit. If you're running out of memory:
+Large models need lots of RAM. If you're running out of memory:
 
 - Use a smaller model (e.g., `ollama:qwen3.5:1.5b` or `ollama:gemma3`)
 - Close other applications to free RAM
-- Increase Docker's memory limit in Docker Desktop settings
 
 ### Ollama returns malformed JSON
 

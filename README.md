@@ -37,11 +37,11 @@ Your Resume + Job Description
 
 ## Quick Start
 
-Pick **one** of the three options below. Option B is easiest if you don't want to pay for an API key.
+Pick **one** of the two options below. Option B is easiest if you want to hack on the code or use free local models.
 
 ---
 
-### Option A: Docker + Claude API (best quality)
+### Option A: Docker + Claude API (recommended)
 
 Claude gives the best resume output. You need an API key ($0.01-0.05 per resume).
 
@@ -79,37 +79,9 @@ The tool walks you through it: paste your resume, paste the job description, ans
 
 ---
 
-### Option B: Docker + Ollama (free, runs locally)
-
-No API key, no account, no cost. Everything runs on your machine. Requires ~4 GB of RAM.
-
-**1. Clone and start**
-
-```bash
-git clone https://github.com/allen92524/resume-tailor.git
-cd resume-tailor
-
-# Start the Ollama container (downloads ~2 GB on first run)
-docker compose -f docker-compose.full.yml up -d ollama
-```
-
-**2. Download a model** (one-time, ~2 GB)
-
-```bash
-docker compose -f docker-compose.full.yml exec ollama ollama pull qwen3.5
-```
-
-**3. Generate your first resume**
-
-```bash
-docker compose -f docker-compose.full.yml run --rm resume-tailor
-```
-
----
-
 ### Accessing local files in Docker
 
-When running with Docker (Options A or B), your **Downloads**, **Desktop**, and **Documents** folders are automatically mounted read-only into the container. You can reference files using their original paths — they're converted automatically:
+Your **Downloads**, **Desktop**, and **Documents** folders are automatically mounted read-only into the container. You can reference files using their original paths — they're converted automatically:
 
 ```
 ~/Downloads/resume.pdf       → /mnt/downloads/resume.pdf
@@ -121,9 +93,11 @@ You can also place files in the `input/` folder in the project directory — the
 
 ---
 
-### Option C: Install locally (no Docker)
+### Option B: Install locally (no Docker)
 
-Best if you want to hack on the code or avoid Docker.
+Best if you want to hack on the code, use free local models via Ollama, or avoid Docker.
+
+> **Note:** Ollama (free local models) is only supported when running locally — not inside Docker. LLM models are too large to run efficiently inside containers.
 
 **1. Clone and install**
 
@@ -227,7 +201,7 @@ Done! Your tailored resume has been saved to:
 - **Multi-profile** — manage resumes for different people on the same machine
 - **Session restore** — re-run with `--resume-session` to try different answers
 - **Dry-run mode** — test the full flow without using API credits
-- **Local or cloud AI** — use Claude API or free local Ollama models
+- **Local or cloud AI** — use Claude API or free local Ollama models (local install only)
 
 ## Commands
 

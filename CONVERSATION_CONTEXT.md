@@ -22,6 +22,7 @@ Claude Code should read this to understand the project history and design philos
 7. **No placeholders in generation** — generation prompt must never produce [X%] or [number]
 8. **Industry timeline awareness** — use terminology appropriate to each role's time period
 9. **Smart follow-up on "No"** — suggest adjacent skills before accepting No
+10. **Docker = Claude API only** — Ollama (local models) is only for local installs, never inside Docker. LLM models are too large for containers (huge images, slow pulls, heavy resources). `docker-compose.full.yml` was removed.
 
 ## Known Issues to Watch
 - Local Ollama models produce lower quality output than Claude API
