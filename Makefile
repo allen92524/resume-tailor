@@ -71,16 +71,22 @@ metrics: ## Fetch raw Prometheus metrics from the running API
 docker-build: ## Build Docker image
 	docker build -t resume-tailor .
 
-docker-run: ## Run Docker container with interactive mode
+docker-run: ## Run Docker container with Claude API
 	docker run -it --rm \
 		-e ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
 		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
 		-v $(PWD)/output:/output \
 		resume-tailor generate
 
-docker-ollama: ## Run Docker container with local Ollama (e.g. make docker-ollama MODEL=ollama:qwen3.5)
+docker-ollama: ## Run Docker + host Ollama (e.g. make docker-ollama MODEL=ollama:qwen3.5)
 	@test -n "$(MODEL)" || (echo "Usage: make docker-ollama MODEL=ollama:<model-name>" && echo "  Requires Ollama running on your machine (ollama serve)" && exit 1)
-	docker compose run --rm resume-tailor generate --model $(MODEL) --format pdf --output /output/
+	docker run -it --rm \
+		--network host \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
+		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
+		-v $(PWD)/output:/output \
+		resume-tailor-resume-tailor generate --model $(MODEL) --format pdf --output /output/
 
 test-docker: docker-build ## Build and smoke-test Docker image
 	@echo "==> Testing dry-run (no API key needed)..."

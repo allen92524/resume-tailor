@@ -285,8 +285,23 @@ The Docker container connects to Ollama running on your machine — no LLM model
 3. Run:
 
 ```bash
+# macOS / Windows Docker Desktop
 docker compose run --rm resume-tailor generate --model ollama:qwen3.5
+
+# Linux / WSL2 (use --network host because Ollama binds to localhost only)
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:qwen3.5
 ```
+
+> **Why the difference?** On macOS/Windows, Docker Desktop provides `host.docker.internal` which routes to the host automatically. On Linux/WSL2, Ollama only listens on `127.0.0.1`, so Docker containers can't reach it through bridge networking. `--network host` lets the container share the host's network, making `localhost` work directly.
+
+### File ownership
+
+Docker runs as root by default. Resume Tailor automatically fixes file ownership so generated resumes and profile data are owned by your user (not root). This is handled via `HOST_UID`/`HOST_GID` environment variables passed through `docker-compose.yml`.
+
+If using `docker run` directly, add: `-e HOST_UID=$(id -u) -e HOST_GID=$(id -g)`
 
 ### Manual docker run (without Compose)
 
@@ -296,14 +311,23 @@ docker build -t resume-tailor .
 # Claude API
 docker run -it --rm \
   -e ANTHROPIC_API_KEY="sk-ant-your-key" \
+  -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
 
-# Ollama (connects to host)
+# Ollama (Linux/WSL2 — uses host networking)
+docker run -it --rm \
+  --network host \
+  -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+
+# Ollama (macOS/Windows Docker Desktop — uses host.docker.internal)
 docker run -it --rm \
   -e OLLAMA_HOST=http://host.docker.internal:11434 \
-  --add-host=host.docker.internal:host-gateway \
+  -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
@@ -666,6 +690,31 @@ curl http://localhost:11434/api/tags
 
 # Start it if needed
 ollama serve
+```
+
+### Ollama connection refused inside Docker (Linux/WSL2)
+
+On Linux and WSL2, Ollama only listens on `127.0.0.1` by default. Docker containers can't reach it through bridge networking because `host.docker.internal` resolves to a different IP (`172.17.0.1`).
+
+**Fix:** Use `--network host` so the container shares the host's network:
+
+```bash
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+```
+
+Or use the Makefile shortcut: `make docker-ollama MODEL=ollama:qwen3.5`
+
+This is not needed on macOS/Windows Docker Desktop, where `host.docker.internal` works natively.
+
+### Docker files are owned by root / permission denied
+
+Resume Tailor automatically fixes file ownership when `HOST_UID`/`HOST_GID` are set. `docker-compose.yml` sets these automatically. If using `docker run` directly, add:
+
+```bash
+-e HOST_UID=$(id -u) -e HOST_GID=$(id -g)
 ```
 
 ### Ollama request times out

@@ -46,7 +46,15 @@ ollama pull qwen3.5
 docker compose run --rm resume-tailor generate --model ollama:qwen3.5
 ```
 
-> Docker 容器会自动连接到你电脑上运行的 Ollama。LLM 模型不会存储在容器中。
+> Docker 容器会连接到你电脑上运行的 Ollama。LLM 模型不会存储在容器中。
+>
+> **Linux/WSL2 用户：** 如果遇到 "connection refused" 错误，Ollama 默认只监听 localhost。请改用 `--network host`：
+> ```bash
+> docker run -it --rm --network host \
+>   -v ~/.resume-tailor:/root/.resume-tailor \
+>   -v $(pwd)/output:/output \
+>   resume-tailor-resume-tailor generate --model ollama:qwen3.5
+> ```
 
 就这样！工具会一步步引导你完成。PDF 输出开箱即用。
 
@@ -221,16 +229,22 @@ docker run -it --rm \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
 
-# Ollama（连接到你电脑上的 Ollama）
+# Ollama（Linux/WSL2 — 使用 host 网络模式）
+docker run -it --rm \
+  --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
+
+# Ollama（macOS/Windows Docker Desktop — 使用 host.docker.internal）
 docker run -it --rm \
   -e OLLAMA_HOST=http://host.docker.internal:11434 \
-  --add-host=host.docker.internal:host-gateway \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --model ollama:qwen3.5 --format pdf --output /output/
 ```
 
-> LLM 模型不会存储在容器中。Docker 镜像连接到你主机上运行的 Ollama。
+> LLM 模型不会存储在容器中。Docker 镜像连接到你主机上运行的 Ollama。生成的文件会自动设置为你的用户权限（不是 root）。
 
 ### REST API
 

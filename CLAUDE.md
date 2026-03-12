@@ -21,6 +21,7 @@ resume-tailor/
 ├── VERSION                # Current semantic version (e.g. 1.3.0)
 ├── Dockerfile             # Container image definition
 ├── docker-compose.yml     # Docker Compose (Claude API + host Ollama)
+├── entrypoint.sh          # Docker entrypoint (runs app + fixes file ownership)
 ├── .dockerignore          # Docker build ignore rules
 ├── .gitattributes         # Line ending and binary file rules
 ├── requirements.txt       # Python dependencies (runtime)
@@ -127,7 +128,7 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - Kubernetes: enable ServiceMonitor and Grafana dashboard via Helm values
 
 ### Deployment
-- **Docker:** `Dockerfile` for containerized builds; connects to host Ollama via `host.docker.internal`
+- **Docker:** `Dockerfile` + `entrypoint.sh` for containerized builds; `entrypoint.sh` fixes file ownership via `HOST_UID`/`HOST_GID`; Ollama connectivity via `host.docker.internal` (macOS/Windows) or `--network host` (Linux/WSL2)
 - **Helm:** Chart in `helm/resume-tailor/` for Kubernetes deployment
 - **ArgoCD:** GitOps auto-deploy from `argocd/application.yaml` — watches `main` branch
 - **CI/CD:** GitHub Actions (`.github/workflows/ci.yml`) runs lint + tests on push/PR

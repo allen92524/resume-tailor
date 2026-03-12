@@ -6,13 +6,11 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OLLAMA_HOST=http://host.docker.internal:11434
+      - HOST_UID=${UID:-1000}
+      - HOST_GID=${GID:-1000}
     extra_hosts:
       - "host.docker.internal:host-gateway"  # Linux support
     volumes:
       - ~/.resume-tailor:/root/.resume-tailor
       - ./output:/output
-      - ${HOME}/Downloads:/mnt/downloads:ro
-      - ${HOME}/Desktop:/mnt/desktop:ro
-      - ${HOME}/Documents:/mnt/documents:ro
-      - ./input:/mnt/input:ro
     command: ["generate", "--format", "pdf", "--output", "/output/"]
