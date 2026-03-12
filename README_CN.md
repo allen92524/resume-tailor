@@ -44,14 +44,11 @@ docker compose run --rm resume-tailor
 ```bash
 ollama pull gemma3
 
-# Linux / WSL2
-docker run -it --rm --network host \
-  -v ~/.resume-tailor:/root/.resume-tailor \
-  -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:gemma3
-
-# macOS / Windows
+# macOS / Windows / WSL2（Docker Desktop）
 docker compose run --rm resume-tailor generate --model ollama:gemma3
+
+# Linux（原生 Docker）
+make docker-ollama MODEL=ollama:gemma3
 ```
 
 > Docker 容器会连接到你电脑上运行的 Ollama。LLM 模型不会存储在容器中。
@@ -229,16 +226,16 @@ docker run -it --rm \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
 
-# Ollama（Linux/WSL2 — 使用 host 网络模式）
+# Ollama（macOS / Windows / WSL2 — Docker Desktop）
 docker run -it --rm \
-  --network host \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 
-# Ollama（macOS/Windows Docker Desktop — 使用 host.docker.internal）
+# Ollama（Linux — 原生 Docker，使用 host 网络模式）
 docker run -it --rm \
-  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  --network host \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --model ollama:gemma3 --format pdf --output /output/

@@ -285,17 +285,14 @@ The Docker container connects to Ollama running on your machine — no LLM model
 3. Run:
 
 ```bash
-# macOS / Windows Docker Desktop
+# macOS / Windows / WSL2 (Docker Desktop)
 docker compose run --rm resume-tailor generate --model ollama:gemma3
 
-# Linux / WSL2 (use --network host because Ollama binds to localhost only)
-docker run -it --rm --network host \
-  -v ~/.resume-tailor:/root/.resume-tailor \
-  -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:gemma3
+# Linux (native Docker)
+make docker-ollama MODEL=ollama:gemma3
 ```
 
-> **Why the difference?** On macOS/Windows, Docker Desktop provides `host.docker.internal` which routes to the host automatically. On Linux/WSL2, Ollama only listens on `127.0.0.1`, so Docker containers can't reach it through bridge networking. `--network host` lets the container share the host's network, making `localhost` work directly.
+> **Why the difference?** Docker Desktop (macOS/Windows/WSL2) provides `host.docker.internal` which routes to the host automatically. On Linux with native Docker, Ollama only listens on `127.0.0.1`, so the container needs `--network host` to reach it. The `make docker-ollama` command handles this for you.
 
 ### File ownership
 
@@ -316,17 +313,17 @@ docker run -it --rm \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
 
-# Ollama (Linux/WSL2 — uses host networking)
+# Ollama (macOS / Windows / WSL2 — Docker Desktop)
 docker run -it --rm \
-  --network host \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
   -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 
-# Ollama (macOS/Windows Docker Desktop — uses host.docker.internal)
+# Ollama (Linux — native Docker, uses host networking)
 docker run -it --rm \
-  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  --network host \
   -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
@@ -692,22 +689,19 @@ curl http://localhost:11434/api/tags
 ollama serve
 ```
 
-### Ollama connection refused inside Docker (Linux/WSL2)
+### Ollama connection refused inside Docker (Linux with native Docker)
 
-On Linux and WSL2, Ollama only listens on `127.0.0.1` by default. Docker containers can't reach it through bridge networking because `host.docker.internal` resolves to a different IP (`172.17.0.1`).
+On Linux with native Docker (not Docker Desktop), Ollama only listens on `127.0.0.1` by default. Docker containers can't reach it through bridge networking.
 
-**Fix:** Use `--network host` so the container shares the host's network:
+**Fix:** Use the Makefile shortcut which handles networking automatically:
 
 ```bash
-docker run -it --rm --network host \
-  -v ~/.resume-tailor:/root/.resume-tailor \
-  -v $(pwd)/output:/output \
-  resume-tailor-resume-tailor generate --model ollama:gemma3
+make docker-ollama MODEL=ollama:gemma3
 ```
 
-Or use the Makefile shortcut: `make docker-ollama MODEL=ollama:gemma3`
+Or manually: `docker run --network host ...` (see the Docker section above for the full command).
 
-This is not needed on macOS/Windows Docker Desktop, where `host.docker.internal` works natively.
+This is not needed on macOS, Windows, or WSL2 with Docker Desktop, where `host.docker.internal` works natively.
 
 ### Docker files are owned by root / permission denied
 

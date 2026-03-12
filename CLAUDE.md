@@ -128,7 +128,7 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - Kubernetes: enable ServiceMonitor and Grafana dashboard via Helm values
 
 ### Deployment
-- **Docker:** `Dockerfile` + `entrypoint.sh` for containerized builds; `entrypoint.sh` fixes file ownership via `HOST_UID`/`HOST_GID`; Ollama connectivity via `host.docker.internal` (macOS/Windows) or `--network host` (Linux/WSL2)
+- **Docker:** `Dockerfile` + `entrypoint.sh` for containerized builds; `entrypoint.sh` fixes file ownership via `HOST_UID`/`HOST_GID`; Ollama connectivity via `host.docker.internal` (macOS/Windows/WSL2 Docker Desktop) or `--network host` (Linux native Docker)
 - **Helm:** Chart in `helm/resume-tailor/` for Kubernetes deployment
 - **ArgoCD:** GitOps auto-deploy from `argocd/application.yaml` — watches `main` branch
 - **CI/CD:** GitHub Actions (`.github/workflows/ci.yml`) runs lint + tests on push/PR
