@@ -9,7 +9,7 @@ import sys
 import anthropic
 import click
 
-from src.config import MODEL, MAX_TOKENS_VALIDATE, OLLAMA_BASE_URL
+from src.config import MODEL, MAX_TOKENS_VALIDATE, OLLAMA_BASE_URL, CLAUDE_DEFAULT_VARIANT
 from src.llm_client import list_ollama_models
 from src.models import ResumeContent, ResumeReview
 
@@ -293,6 +293,45 @@ def fill_generation_placeholders(resume_data: ResumeContent) -> ResumeContent:
     return resume_data
 
 
+def _select_claude_variant(saved_model: str | None) -> str:
+    """Show a sub-menu to pick a Claude model variant (Haiku/Sonnet/Opus)."""
+    variants = [
+        ("haiku", "Haiku", "Fast & affordable"),
+        ("sonnet", "Sonnet", "Best balance"),
+        ("opus", "Opus", "Most capable"),
+    ]
+
+    # Determine default from saved preference
+    saved_variant = CLAUDE_DEFAULT_VARIANT
+    if saved_model and saved_model.startswith("claude:"):
+        saved_variant = saved_model.split(":", 1)[1]
+
+    click.echo("--- Select Claude Model ---\n")
+    default_idx = 1
+    for i, (key, name, desc) in enumerate(variants, 1):
+        marker = " (default)" if key == saved_variant else ""
+        click.echo(f"  {i}. {name} — {desc}{marker}")
+        if key == saved_variant:
+            default_idx = i
+
+    click.echo("")
+    choice_str = click.prompt(
+        "Choose", default=str(default_idx), show_default=True
+    ).strip()
+
+    try:
+        idx = int(choice_str) - 1
+        if idx < 0 or idx >= len(variants):
+            raise ValueError()
+    except ValueError:
+        click.echo("Invalid selection. Using default.")
+        idx = default_idx - 1
+
+    key, name, _ = variants[idx]
+    click.echo(f"Selected: Claude {name}\n")
+    return f"claude:{key}"
+
+
 def select_model_interactive(profile_prefs: dict) -> str:
     """Show an interactive menu for model selection.
 
@@ -342,11 +381,15 @@ def select_model_interactive(profile_prefs: dict) -> str:
     # Show menu
     click.echo("\n--- Select AI Model ---\n")
 
-    # Mark the saved default
+    # Mark the saved default — saved_model may be "claude:sonnet", match "claude" option too
     default_idx = 1
     for i, opt in enumerate(options, 1):
         marker = ""
-        if opt["value"] == saved_model:
+        is_match = (
+            opt["value"] == saved_model
+            or (opt["value"] == "claude" and saved_model and saved_model.startswith("claude:"))
+        )
+        if is_match:
             marker = " (saved default)"
             default_idx = i
         click.echo(f"  {i}. {opt['label']}{marker}")
@@ -369,6 +412,11 @@ def select_model_interactive(profile_prefs: dict) -> str:
 
     selected = options[idx]["value"]
     click.echo(f"Selected: {options[idx]['label']}\n")
+
+    # If Claude was selected, show sub-menu for model variant
+    if selected == "claude":
+        selected = _select_claude_variant(saved_model)
+
     return selected
 
 
