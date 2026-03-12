@@ -43,18 +43,18 @@ docker compose run --rm resume-tailor
 
 ```bash
 ollama pull qwen3.5
+
+# Linux / WSL2
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+
+# macOS / Windows
 docker compose run --rm resume-tailor generate --model ollama:qwen3.5
 ```
 
 > Docker 容器会连接到你电脑上运行的 Ollama。LLM 模型不会存储在容器中。
->
-> **Linux/WSL2 用户：** 如果遇到 "connection refused" 错误，Ollama 默认只监听 localhost。请改用 `--network host`：
-> ```bash
-> docker run -it --rm --network host \
->   -v ~/.resume-tailor:/root/.resume-tailor \
->   -v $(pwd)/output:/output \
->   resume-tailor-resume-tailor generate --model ollama:qwen3.5
-> ```
 
 就这样！工具会一步步引导你完成。PDF 输出开箱即用。
 

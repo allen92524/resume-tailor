@@ -43,18 +43,18 @@ Install Ollama from https://ollama.com/download, then:
 
 ```bash
 ollama pull qwen3.5
+
+# Linux / WSL2
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:qwen3.5
+
+# macOS / Windows
 docker compose run --rm resume-tailor generate --model ollama:qwen3.5
 ```
 
 > The Docker container connects to Ollama running on your machine. No LLM models are stored inside the container.
->
-> **Linux/WSL2 users:** If you get "connection refused", Ollama only listens on localhost by default. Use `--network host` instead:
-> ```bash
-> docker run -it --rm --network host \
->   -v ~/.resume-tailor:/root/.resume-tailor \
->   -v $(pwd)/output:/output \
->   resume-tailor-resume-tailor generate --model ollama:qwen3.5
-> ```
 
 That's it! The tool walks you through everything step by step. PDF output works out of the box.
 
