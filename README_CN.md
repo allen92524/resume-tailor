@@ -10,62 +10,73 @@
 
 ## 你需要准备什么
 
-- **Python 3.12+** — 没安装的话[点这里下载](https://www.python.org/downloads/)
+- **Docker**（[点这里下载](https://www.docker.com/products/docker-desktop/)）— 推荐，无需安装其他东西
 - **AI 后端**（二选一）：
-  - **Claude API**（推荐，每份简历约 ¥0.07-0.35）— [获取 API 密钥](https://console.anthropic.com/settings/keys)
+  - **Claude API**（质量最好，每份简历约 ¥0.07-0.35）— [获取 API 密钥](https://console.anthropic.com/settings/keys)
   - **Ollama**（完全免费，在你电脑上本地运行）— [点这里安装](https://ollama.com/download)
 
-## 快速开始
+## 快速开始（Docker — 最简单）
 
-### 1. 下载并设置
+Docker 包含一切：Python、所有依赖和 PDF 支持。无需安装其他东西。
 
-打开终端运行：
+### 1. 下载
+
+```bash
+git clone https://github.com/allen92524/resume-tailor.git
+cd resume-tailor
+```
+
+### 2. 选择你的 AI 并运行
+
+**方案 A：Claude API**（质量最好，每份简历约 ¥0.20）
+
+到 https://console.anthropic.com/settings/keys 获取 API 密钥（以 `sk-ant-` 开头），然后：
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-你的密钥"
+docker compose run --rm resume-tailor
+```
+
+**方案 B：Ollama**（完全免费）
+
+从 https://ollama.com/download 安装 Ollama，然后：
+
+```bash
+ollama pull gemma3
+
+# Linux / WSL2
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:gemma3
+
+# macOS / Windows
+docker compose run --rm resume-tailor generate --model ollama:gemma3
+```
+
+> Docker 容器会连接到你电脑上运行的 Ollama。LLM 模型不会存储在容器中。
+
+就这样！工具会一步步引导你完成。PDF 输出开箱即用。
+
+<details>
+<summary>替代方案：本地安装（不使用 Docker）</summary>
+
+如果你不想用 Docker，可以直接安装。需要 Python 3.12+。
 
 ```bash
 git clone https://github.com/allen92524/resume-tailor.git
 cd resume-tailor
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-<details>
-<summary>Windows 用户？激活虚拟环境用这个</summary>
-
-```bash
-venv\Scripts\activate
-```
-</details>
-
-### 2. 选择你的 AI
-
-**方案 A：Claude API**（质量最好，每份简历约 ¥0.20）
-
-到 https://console.anthropic.com/settings/keys 获取 API 密钥——以 `sk-ant-` 开头。然后：
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-你的密钥"
-```
-
-**方案 B：Ollama**（完全免费，本地运行）
-
-从 https://ollama.com/download 安装 Ollama，然后下载一个模型：
-
-```bash
-ollama pull qwen3.5
-```
-
-### 3. 生成你的第一份简历
-
-```bash
-# 使用 Claude API（默认）
+export ANTHROPIC_API_KEY="sk-ant-你的密钥"   # 如果使用 Claude
 python src/main.py generate
-
-# 使用 Ollama（免费）
-python src/main.py generate --model ollama:qwen3.5
 ```
 
-就这样！工具会一步步引导你完成。
+> 本地安装的 PDF 输出需要 LibreOffice：`sudo apt install libreoffice-writer`（Linux）或 `brew install --cask libreoffice`（macOS）。或者直接用 `--format docx`。
+
+</details>
 
 ---
 
@@ -138,10 +149,14 @@ python src/main.py review
 ### 输出为 PDF
 
 ```bash
+# Docker（PDF 开箱即用）
+docker compose run --rm resume-tailor generate --format pdf --output /output/
+
+# 本地安装（需要 LibreOffice）
 python src/main.py generate --format pdf
 ```
 
-> PDF 需要 LibreOffice。安装方法：`sudo apt install libreoffice-writer`（Linux）或 `brew install --cask libreoffice`（macOS）。或者直接用 `--format docx`。
+> 仅本地安装：PDF 需要 LibreOffice。安装方法：`sudo apt install libreoffice-writer`（Linux）或 `brew install --cask libreoffice`（macOS）。Docker 已自动包含。
 
 ### 管理你的档案
 
@@ -200,19 +215,36 @@ python src/main.py generate --dry-run
 <details>
 <summary>Docker、REST API、Kubernetes 等</summary>
 
-### Docker（仅支持 Claude API）
+### Docker 详情
+
+Docker Compose 是最简单的运行方式（见上方快速开始）。手动 `docker run`：
 
 ```bash
 docker build -t resume-tailor .
 
-docker run -it \
+# Claude API
+docker run -it --rm \
   -e ANTHROPIC_API_KEY="sk-ant-你的密钥" \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
+
+# Ollama（Linux/WSL2 — 使用 host 网络模式）
+docker run -it --rm \
+  --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
+
+# Ollama（macOS/Windows Docker Desktop — 使用 host.docker.internal）
+docker run -it --rm \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 ```
 
-> Docker 中不支持 Ollama — LLM 模型体积太大，无法在容器中运行。请通过本地安装使用 Ollama。
+> LLM 模型不会存储在容器中。Docker 镜像连接到你主机上运行的 Ollama。生成的文件会自动设置为你的用户权限（不是 root）。
 
 ### REST API
 

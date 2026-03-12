@@ -10,62 +10,73 @@ You have one resume. Every job is different. Resume Tailor reads the job descrip
 
 ## What You Need
 
-- **Python 3.12+** — [download here](https://www.python.org/downloads/) if you don't have it
+- **Docker** ([download here](https://www.docker.com/products/docker-desktop/)) — recommended, nothing else to install
 - **An AI backend** (pick one):
-  - **Claude API** (recommended, ~$0.01-0.05 per resume) — [get an API key](https://console.anthropic.com/settings/keys)
+  - **Claude API** (best quality, ~$0.01-0.05 per resume) — [get an API key](https://console.anthropic.com/settings/keys)
   - **Ollama** (free, runs on your computer) — [install here](https://ollama.com/download)
 
-## Quick Start
+## Quick Start (Docker — easiest)
 
-### 1. Download and set up
+Docker includes everything: Python, all dependencies, and PDF support. Nothing else to install.
 
-Open a terminal and run:
+### 1. Download
+
+```bash
+git clone https://github.com/allen92524/resume-tailor.git
+cd resume-tailor
+```
+
+### 2. Choose your AI and run
+
+**Option A: Claude API** (best quality, ~$0.03 per resume)
+
+Get your API key at https://console.anthropic.com/settings/keys (starts with `sk-ant-`), then:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+docker compose run --rm resume-tailor
+```
+
+**Option B: Ollama** (completely free)
+
+Install Ollama from https://ollama.com/download, then:
+
+```bash
+ollama pull gemma3
+
+# Linux / WSL2
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:gemma3
+
+# macOS / Windows
+docker compose run --rm resume-tailor generate --model ollama:gemma3
+```
+
+> The Docker container connects to Ollama running on your machine. No LLM models are stored inside the container.
+
+That's it! The tool walks you through everything step by step. PDF output works out of the box.
+
+<details>
+<summary>Alternative: Local install (without Docker)</summary>
+
+If you prefer not to use Docker, you can install directly. Requires Python 3.12+.
 
 ```bash
 git clone https://github.com/allen92524/resume-tailor.git
 cd resume-tailor
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-<details>
-<summary>On Windows? Use this instead for the activate step</summary>
-
-```bash
-venv\Scripts\activate
-```
-</details>
-
-### 2. Choose your AI
-
-**Option A: Claude API** (best quality, costs ~$0.03 per resume)
-
-Get your API key at https://console.anthropic.com/settings/keys — it starts with `sk-ant-`. Then:
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-your-key-here"
-```
-
-**Option B: Ollama** (completely free, runs locally)
-
-Install Ollama from https://ollama.com/download, then download a model:
-
-```bash
-ollama pull qwen3.5
-```
-
-### 3. Generate your first resume
-
-```bash
-# With Claude API (default)
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"   # if using Claude
 python src/main.py generate
-
-# With Ollama (free)
-python src/main.py generate --model ollama:qwen3.5
 ```
 
-That's it! The tool walks you through everything step by step.
+> For PDF output with local install, you'll also need LibreOffice: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Or just use `--format docx`.
+
+</details>
 
 ---
 
@@ -138,10 +149,14 @@ python src/main.py review
 ### Output as PDF
 
 ```bash
+# Docker (PDF works out of the box)
+docker compose run --rm resume-tailor generate --format pdf --output /output/
+
+# Local install (requires LibreOffice)
 python src/main.py generate --format pdf
 ```
 
-> PDF requires LibreOffice. Install it: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Or just use `--format docx`.
+> Local install only: PDF requires LibreOffice. Install it: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Docker includes it automatically.
 
 ### Manage your profile
 
@@ -200,19 +215,36 @@ See [USAGE.md](USAGE.md) for the complete reference with all flags, workflows, a
 <details>
 <summary>Docker, REST API, Kubernetes, and more</summary>
 
-### Docker (Claude API only)
+### Docker details
+
+Docker Compose is the easiest way to run (see Quick Start above). For manual `docker run`:
 
 ```bash
 docker build -t resume-tailor .
 
-docker run -it \
+# Claude API
+docker run -it --rm \
   -e ANTHROPIC_API_KEY="sk-ant-your-key" \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
+
+# Ollama (Linux/WSL2 — uses host networking)
+docker run -it --rm \
+  --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
+
+# Ollama (macOS/Windows Docker Desktop — uses host.docker.internal)
+docker run -it --rm \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 ```
 
-> Ollama is not supported inside Docker — LLM models are too large for containers. Use Ollama with the local install instead.
+> No LLM models are stored inside the container. The Docker image connects to Ollama running on your host machine. Generated files are automatically owned by your user (not root).
 
 ### REST API
 

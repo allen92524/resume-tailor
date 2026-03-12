@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run docker-ollama test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -51,7 +51,7 @@ format: ## Run black formatter
 run: ## Activate venv and run generate
 	$(PYTHON) src/main.py generate
 
-run-local: ## Run generate with local Ollama model (e.g. make run-local MODEL=ollama:qwen3.5)
+run-local: ## Run generate with local Ollama model (e.g. make run-local MODEL=ollama:gemma3)
 	@test -n "$(MODEL)" || (echo "Usage: make run-local MODEL=ollama:<model-name>" && exit 1)
 	$(PYTHON) src/main.py generate --model $(MODEL)
 
@@ -71,12 +71,22 @@ metrics: ## Fetch raw Prometheus metrics from the running API
 docker-build: ## Build Docker image
 	docker build -t resume-tailor .
 
-docker-run: ## Run Docker container with interactive mode
+docker-run: ## Run Docker container with Claude API
 	docker run -it --rm \
 		-e ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
 		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
 		-v $(PWD)/output:/output \
 		resume-tailor generate
+
+docker-ollama: ## Run Docker + host Ollama (e.g. make docker-ollama MODEL=ollama:gemma3)
+	@test -n "$(MODEL)" || (echo "Usage: make docker-ollama MODEL=ollama:<model-name>" && echo "  Requires Ollama running on your machine (ollama serve)" && exit 1)
+	docker run -it --rm \
+		--network host \
+		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
+		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
+		-v $(PWD)/output:/output \
+		resume-tailor-resume-tailor generate --model $(MODEL) --format pdf --output /output/
 
 test-docker: docker-build ## Build and smoke-test Docker image
 	@echo "==> Testing dry-run (no API key needed)..."

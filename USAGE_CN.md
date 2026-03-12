@@ -193,7 +193,7 @@ python src/main.py review
 ### 用本地模型评审
 
 ```bash
-python src/main.py review --model ollama:qwen3.5
+python src/main.py review --model ollama:gemma3
 ```
 
 ---
@@ -233,14 +233,14 @@ brew install ollama
 ### 下载模型并运行
 
 ```bash
-ollama pull qwen3.5
-python src/main.py generate --model ollama:qwen3.5
+ollama pull gemma3
+python src/main.py generate --model ollama:gemma3
 ```
 
 无需 API 密钥。`--model` 参数在 `generate` 和 `review` 中都可以使用：
 
 ```bash
-python src/main.py review --model ollama:qwen3.5
+python src/main.py review --model ollama:gemma3
 ```
 
 ### 可用模型
@@ -249,9 +249,9 @@ python src/main.py review --model ollama:qwen3.5
 
 | 模型 | 命令 | 备注 |
 |------|------|------|
-| Qwen 3.5 | `--model ollama:qwen3.5` | 综合表现好，推荐 |
+| Gemma 3 | `--model ollama:gemma3` | 综合表现好，推荐 |
 | Devstral | `--model ollama:devstral` | 技术类简历表现强 |
-| Gemma 3 | `--model ollama:gemma3` | 轻量，更快 |
+| Qwen 3.5 | `--model ollama:qwen3.5` | 通用替代选择 |
 
 ### 不用任何 AI 测试
 
@@ -265,26 +265,70 @@ python src/main.py generate --dry-run
 
 ## 我想在 Docker 里运行
 
-Docker 仅支持 Claude API。Ollama（免费本地模型）仅在不使用 Docker 的本地安装中支持——参见[我想用免费的本地模型替代 Claude](#我想用免费的本地模型替代-claude)。
-
-> **为什么 Docker 不支持 Ollama？** LLM 模型是数 GB 的大文件。在容器内运行意味着巨大的镜像、缓慢的拉取和沉重的资源消耗。直接在你的电脑上运行 Ollama 效果更好。
+Docker 是运行 Resume Tailor 最简单的方式——包含 Python、所有依赖和 LibreOffice PDF 输出。除了 Docker 本身，无需安装任何东西。
 
 ### Docker + Claude API
 
 ```bash
+export ANTHROPIC_API_KEY="sk-ant-你的密钥"
+docker compose run --rm resume-tailor
+```
+
+### Docker + Ollama（免费）
+
+Docker 容器会连接到你电脑上运行的 Ollama——LLM 模型不会存储在容器中。
+
+1. 在你的电脑上安装并启动 Ollama：https://ollama.com/download
+2. 下载模型：`ollama pull gemma3`
+3. 运行：
+
+```bash
+# macOS / Windows Docker Desktop
+docker compose run --rm resume-tailor generate --model ollama:gemma3
+
+# Linux / WSL2（使用 --network host，因为 Ollama 默认只监听 localhost）
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:gemma3
+```
+
+> **为什么有区别？** 在 macOS/Windows 上，Docker Desktop 提供 `host.docker.internal` 自动路由到主机。在 Linux/WSL2 上，Ollama 只监听 `127.0.0.1`，Docker 容器无法通过桥接网络访问。`--network host` 让容器共享主机网络，使 `localhost` 直接可用。
+
+### 文件所有权
+
+Docker 默认以 root 运行。Resume Tailor 会自动修正文件所有权，确保生成的简历和档案数据属于你的用户（不是 root）。这通过 `docker-compose.yml` 中的 `HOST_UID`/`HOST_GID` 环境变量实现。
+
+如果直接使用 `docker run`，请添加：`-e HOST_UID=$(id -u) -e HOST_GID=$(id -g)`
+
+### 手动 docker run（不使用 Compose）
+
+```bash
 docker build -t resume-tailor .
 
-docker run -it \
+# Claude API
+docker run -it --rm \
   -e ANTHROPIC_API_KEY="sk-ant-你的密钥" \
+  -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
   -v ~/.resume-tailor:/root/.resume-tailor \
   -v $(pwd)/output:/output \
   resume-tailor generate --format pdf --output /output/
-```
 
-或者用 Docker Compose：
+# Ollama（Linux/WSL2 — 使用 host 网络模式）
+docker run -it --rm \
+  --network host \
+  -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 
-```bash
-docker compose run --rm resume-tailor
+# Ollama（macOS/Windows Docker Desktop — 使用 host.docker.internal）
+docker run -it --rm \
+  -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --model ollama:gemma3 --format pdf --output /output/
 ```
 
 ---
@@ -348,12 +392,12 @@ curl -X POST http://localhost:8000/api/v1/review \
 
 ### 在 API 中使用 Ollama
 
-在任何请求体中传入 `"model": "ollama:qwen3.5"`：
+在任何请求体中传入 `"model": "ollama:gemma3"`：
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/analyze-jd \
   -H "Content-Type: application/json" \
-  -d '{"jd_text": "We are looking for...", "model": "ollama:qwen3.5"}'
+  -d '{"jd_text": "We are looking for...", "model": "ollama:gemma3"}'
 ```
 
 ---
@@ -570,13 +614,14 @@ make release-push
 | `make lint` | 检查代码风格问题 |
 | `make format` | 自动格式化代码 |
 | `make run` | 运行 generate 命令 |
-| `make run-local MODEL=ollama:qwen3.5` | 使用本地 Ollama 模型运行 |
+| `make run-local MODEL=ollama:gemma3` | 使用本地 Ollama 模型运行 |
 | `make run-profile PROFILE=name` | 使用指定档案运行 |
 | `make dry-run` | 用模拟数据测试完整流程 |
 | `make api` | 在 8000 端口启动 REST API 服务器 |
 | `make metrics` | 从运行中的 API 获取指标 |
 | `make docker-build` | 构建 Docker 镜像 |
-| `make docker-run` | 运行 Docker 容器 |
+| `make docker-run` | 运行 Docker 容器（Claude API） |
+| `make docker-ollama MODEL=ollama:gemma3` | 使用本地 Ollama 运行 Docker |
 | `make test-docker` | 构建并测试 Docker 镜像 |
 | `make helm-install` | 通过 Helm 部署到 Kubernetes |
 | `make helm-uninstall` | 移除 Kubernetes 部署 |
@@ -604,7 +649,7 @@ export ANTHROPIC_API_KEY="sk-ant-你的密钥"
 在 https://console.anthropic.com/settings/keys 获取密钥。如果你不想付费，可以用本地模型：
 
 ```bash
-python src/main.py generate --model ollama:qwen3.5
+python src/main.py generate --model ollama:gemma3
 ```
 
 ### "Invalid API key"
@@ -643,6 +688,31 @@ curl http://localhost:11434/api/tags
 
 # 如果没有运行，启动它
 ollama serve
+```
+
+### Docker 中 Ollama 连接被拒绝（Linux/WSL2）
+
+在 Linux 和 WSL2 上，Ollama 默认只监听 `127.0.0.1`。Docker 容器无法通过桥接网络访问，因为 `host.docker.internal` 解析到不同的 IP（`172.17.0.1`）。
+
+**解决方法：** 使用 `--network host` 让容器共享主机网络：
+
+```bash
+docker run -it --rm --network host \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor-resume-tailor generate --model ollama:gemma3
+```
+
+或使用 Makefile 快捷命令：`make docker-ollama MODEL=ollama:gemma3`
+
+macOS/Windows Docker Desktop 不需要此操作，`host.docker.internal` 原生可用。
+
+### Docker 文件属于 root / 权限被拒绝
+
+Resume Tailor 在设置了 `HOST_UID`/`HOST_GID` 时会自动修正文件所有权。`docker-compose.yml` 会自动设置这些变量。如果直接使用 `docker run`，请添加：
+
+```bash
+-e HOST_UID=$(id -u) -e HOST_GID=$(id -g)
 ```
 
 ### 档案损坏了

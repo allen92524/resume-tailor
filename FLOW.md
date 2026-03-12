@@ -7,7 +7,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 
 ### Step 1: Model Selection
 - First thing the user sees, before any LLM calls
-- If `--model` flag provided → use it (e.g. `claude`, `claude:sonnet`, `claude:opus`, `ollama:qwen3.5`)
+- If `--model` flag provided → use it (e.g. `claude`, `claude:sonnet`, `claude:opus`, `ollama:gemma3`)
 - If `--dry-run` → use default model with mock responses
 - Otherwise → show interactive menu (auto-detects Claude API key and Ollama models)
   - If user selects Claude → show sub-menu for variant: Haiku (fast/cheap), Sonnet (balanced, default), Opus (most capable)
