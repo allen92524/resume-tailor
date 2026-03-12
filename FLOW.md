@@ -7,9 +7,11 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 
 ### Step 1: Model Selection
 - First thing the user sees, before any LLM calls
-- If `--model` flag provided → use it
+- If `--model` flag provided → use it (e.g. `claude`, `claude:sonnet`, `claude:opus`, `ollama:qwen3.5`)
 - If `--dry-run` → use default model with mock responses
 - Otherwise → show interactive menu (auto-detects Claude API key and Ollama models)
+  - If user selects Claude → show sub-menu for variant: Haiku (fast/cheap), Sonnet (balanced, default), Opus (most capable)
+  - Selected variant saved to profile preferences as `claude:<variant>`
 - Validate/prepare the chosen backend (API key check or Ollama readiness)
 - Every LLM call logs: "Calling {model_name} for {purpose}..."
 - Selected model is used for ALL subsequent LLM calls including profile setup
@@ -36,7 +38,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
   - Also offer experience bank review: keep, update, or delete each saved answer
 
 ### Step 3: Resume Input
-- If profile has a base resume → use it, show "Using profile resume for {name}"
+- If profile has a base resume → use it, show "Using profile resume for {name}" with a tip to run `profile` command
 - If no profile resume → ask user to paste or provide file path
 - Supported formats: .txt, .md, .docx, .pdf
 - Auto-detect Windows paths and convert to WSL format
@@ -135,7 +137,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - `--output PATH` — output directory or file path
 - `--skip-questions` — skip gap analysis questions
 - `--skip-assessment` — skip compatibility score
-- `--model MODEL` — LLM model: `claude` (default) or `ollama:<name>`
+- `--model MODEL` — LLM model: `claude` (default), `claude:haiku`, `claude:sonnet`, `claude:opus`, or `ollama:<name>`
 - `--dry-run` — use mock API responses
 - `--resume-session` — reuse last session input
 - `--reference PATH` — reference resume file path

@@ -30,7 +30,13 @@ resume-tailor/
 │       └── ci.yml         # GitHub Actions CI (lint + test on push/PR)
 ├── src/
 │   ├── __init__.py
-│   ├── main.py            # CLI entry point (click commands)
+│   ├── main.py            # CLI entry point (registers click groups)
+│   ├── commands/           # CLI command implementations
+│   │   ├── __init__.py    # Exports cli group
+│   │   ├── generate.py    # generate command (full tailoring pipeline)
+│   │   ├── review.py      # review command (resume improvement)
+│   │   ├── profile.py     # profile subcommands (view/edit/reset/backup/etc.)
+│   │   └── common.py      # Shared CLI utilities (model selection, placeholders)
 │   ├── web.py             # FastAPI REST API entry point
 │   ├── api.py             # Claude API call helpers with retry logic
 │   ├── llm_client.py      # Unified LLM client (Claude + Ollama)
@@ -96,8 +102,10 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 ### LLM Backend
 - Supports Claude API (default) and local Ollama models via `src/llm_client.py`
 - `--model claude` (default) uses Anthropic API; `--model ollama:<name>` uses local Ollama
+- Claude variant selection: `claude:haiku`, `claude:sonnet` (default), `claude:opus`
+- Interactive model menu shows Claude variant sub-menu when Claude is selected
 - Claude API uses `anthropic` Python SDK with retry logic (`tenacity`) in `src/api.py`
-- Claude model: `claude-sonnet-4-5-20250929` (configured in `src/config.py`)
+- Claude models configured in `CLAUDE_MODELS` dict in `src/config.py`
 - Ollama communicates via REST API at `http://localhost:11434/api/chat` using `httpx`
 - All prompts stored in `src/prompts/` as Markdown template files, loaded by `src/prompts.py`
 - Shared rules in `src/prompts/shared_rules.md`, injected via `{%SECTION%}` markers

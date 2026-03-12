@@ -1,19 +1,7 @@
 # End-to-End Test Checklist
 Run these manually before each release.
 
-## Docker + Ollama (Mac/Linux)
-- [ ] `git clone` from fresh directory
-- [ ] `docker compose -f docker-compose.full.yml up -d ollama`
-- [ ] `make docker-ollama-pull MODEL=qwen3.5`
-- [ ] `make docker-ollama` — runs without API key
-- [ ] Enter file path from host (e.g. /Users/name/Downloads/resume.pdf) — path converts correctly
-- [ ] Paste resume content directly — works
-- [ ] Full flow completes: review → JD → gap questions → compatibility → generate PDF
-- [ ] No trace JSON printed to terminal
-- [ ] No [X%] or [number] placeholders in generated resume
-- [ ] Output file accessible on host machine
-
-## Docker + Claude API
+## Docker + Claude API (Claude only — Ollama not supported in Docker)
 - [ ] `docker compose run -e ANTHROPIC_API_KEY=xxx resume-tailor` — works
 - [ ] Without API key + without --model flag — shows clear error
 
@@ -23,11 +11,38 @@ Run these manually before each release.
 - [ ] `make test` — all pass
 - [ ] `make lint` — clean
 
+## Model Selection
+- [ ] Interactive menu shows Claude + any Ollama models
+- [ ] Selecting Claude shows sub-menu: Haiku / Sonnet (default) / Opus
+- [ ] `--model claude:opus` works without interactive prompt
+- [ ] `--model claude:haiku` works without interactive prompt
+- [ ] Selected model preference saved to profile
+- [ ] Saved preference shown as default on next run
+
+## Profile Management
+- [ ] `profile view` — shows profile summary
+- [ ] `profile edit` — opens profile.json in editor
+- [ ] `profile reset` — deletes profile and starts fresh
+- [ ] `profile reset-baseline` — reverts resume to original
+- [ ] `profile backup` — creates timestamped backup
+- [ ] `profile restore` — restores from backup
+- [ ] `profile export` — exports as markdown
+- [ ] Profile tip shown: "Tip: run 'python src/main.py profile' to view or edit your profile"
+
 ## Multi-profile
 - [ ] `--profile name1` creates separate profile
 - [ ] `--profile name2` doesn't affect name1
 
+## Full Flow (Claude)
+- [ ] Enter file path (e.g. ~/Downloads/resume.pdf) — path resolves correctly
+- [ ] Paste resume content directly — works
+- [ ] Full flow completes: review → JD → gap questions → compatibility → generate
+- [ ] No trace JSON printed to terminal
+- [ ] No [X%] or [number] placeholders in generated resume
+- [ ] Output file accessible
+
 ## Output
 - [ ] PDF generates and opens correctly
 - [ ] DOCX generates correctly
-- [ ] Filename is Name_Company_Role.pdf format
+- [ ] Markdown generates correctly
+- [ ] Filename is Name_Company_Role.format

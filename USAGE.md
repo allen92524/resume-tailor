@@ -102,6 +102,26 @@ python src/main.py generate --reference path/to/their_resume.docx
 
 The AI uses it to understand what the company values — tone, keywords, structure.
 
+### I want to choose a specific Claude model
+
+When you select Claude interactively, you'll see a sub-menu to pick a variant:
+
+| Model | Best for | Cost |
+|-------|----------|------|
+| Haiku | Quick drafts, testing | Cheapest |
+| Sonnet | Everyday use (default) | Moderate |
+| Opus | Best quality, complex roles | Most expensive |
+
+Or specify directly via `--model`:
+
+```bash
+python src/main.py generate --model claude:opus
+python src/main.py generate --model claude:haiku
+python src/main.py review --model claude:sonnet
+```
+
+Your choice is saved to your profile and used as the default next time.
+
 ### I have all my answers ready and want to go fast
 
 ```bash
@@ -133,10 +153,22 @@ python src/main.py --profile wife profile view
 # Update their contact info
 python src/main.py --profile wife profile update
 
+# Open profile.json in your editor
+python src/main.py --profile wife profile edit
+
+# Export profile as markdown
+python src/main.py --profile wife profile export
+
+# Revert resume to the original (undo all improvements)
+python src/main.py --profile wife profile reset-baseline
+
 # Back up their profile
 python src/main.py --profile wife profile backup
 
-# Reset and start over
+# Restore from a backup
+python src/main.py --profile wife profile restore
+
+# Reset and start over (deletes everything)
 python src/main.py --profile wife profile reset
 ```
 
@@ -523,7 +555,7 @@ This automatically updates `VERSION`, the Helm chart version, creates a git comm
 | `--skip-assessment` | `generate` | Skip compatibility score | off |
 | `--reference <file>` | `generate` | Path to a reference resume | none |
 | `--resume-session` | `generate` | Restore inputs from last session | off |
-| `--model <name>` | `generate`, `review` | AI model: `claude` or `ollama:<name>` | `claude` |
+| `--model <name>` | `generate`, `review` | AI model: `claude`, `claude:haiku`, `claude:sonnet`, `claude:opus`, or `ollama:<name>` | `claude` (Sonnet) |
 | `--dry-run` | `generate` | Use mock data, no AI calls | off |
 
 ---

@@ -143,12 +143,37 @@ python src/main.py generate --format pdf
 
 > PDF requires LibreOffice. Install it: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Or just use `--format docx`.
 
+### Manage your profile
+
+```bash
+# See what's saved
+python src/main.py profile view
+
+# Edit your saved resume
+python src/main.py profile edit
+
+# Start completely fresh
+python src/main.py profile reset
+```
+
 ### Manage a resume for someone else
 
 ```bash
 python src/main.py --profile wife generate
 python src/main.py --profile wife profile view
 ```
+
+### Choose a specific Claude model
+
+```bash
+# Use the most capable model
+python src/main.py generate --model claude:opus
+
+# Use the fastest/cheapest model
+python src/main.py generate --model claude:haiku
+```
+
+When you run interactively (no `--model` flag), you'll be asked to choose between Haiku, Sonnet, and Opus after selecting Claude.
 
 ### Retry with different answers
 
