@@ -6,139 +6,70 @@
 
 **Turn any job posting into a tailored resume in 5 minutes.**
 
-You have one resume. Every job is different. Resume Tailor reads the job description, figures out what matters, asks you a few questions, and generates a polished, ATS-friendly resume — as DOCX, PDF, or Markdown.
+You have one resume. Every job is different. Resume Tailor reads the job description, figures out what matters, asks you a few questions, and generates a polished resume — as DOCX, PDF, or Markdown.
 
-Works with the Claude API (best quality) or free local models via Ollama (no account needed).
+## What You Need
 
-## How It Works
-
-```
-Your Resume + Job Description
-         │
-         ▼
-   ┌─────────────┐
-   │  JD Analysis │ ← Extracts skills, keywords, what the company cares about
-   └──────┬──────┘
-          ▼
-   ┌──────────────┐
-   │ Gap Analysis  │ ← Finds what's missing, asks you targeted questions
-   └──────┬───────┘
-          ▼
-   ┌───────────────────┐
-   │ Compatibility Score│ ← Shows 0-100% match before you commit
-   └───────┬───────────┘
-           ▼
-   ┌──────────────────┐
-   │ Resume Generation │ ← Writes tailored content using your real experience
-   └───────┬──────────┘
-           ▼
-   DOCX / PDF / Markdown
-```
+- **Python 3.12+** — [download here](https://www.python.org/downloads/) if you don't have it
+- **An AI backend** (pick one):
+  - **Claude API** (recommended, ~$0.01-0.05 per resume) — [get an API key](https://console.anthropic.com/settings/keys)
+  - **Ollama** (free, runs on your computer) — [install here](https://ollama.com/download)
 
 ## Quick Start
 
-Pick **one** of the two options below. Option B is easiest if you want to hack on the code or use free local models.
+### 1. Download and set up
 
----
-
-### Option A: Docker + Claude API (recommended)
-
-Claude gives the best resume output. You need an API key ($0.01-0.05 per resume).
-
-**1. Get an API key** (takes 1 minute)
-
-Go to https://console.anthropic.com/settings/keys → create a key → copy it. It starts with `sk-ant-`.
-
-**2. Clone and build**
+Open a terminal and run:
 
 ```bash
 git clone https://github.com/allen92524/resume-tailor.git
 cd resume-tailor
-docker build -t resume-tailor .
-```
-
-**3. Generate your first resume**
-
-```bash
-# Linux / macOS
-docker run -it \
-  -e ANTHROPIC_API_KEY="sk-ant-your-key-here" \
-  -v ~/.resume-tailor:/root/.resume-tailor \
-  -v $(pwd)/output:/output \
-  resume-tailor generate --format pdf --output /output/
-
-# Windows (PowerShell)
-docker run -it `
-  -e ANTHROPIC_API_KEY="sk-ant-your-key-here" `
-  -v $env:USERPROFILE\.resume-tailor:/root/.resume-tailor `
-  -v ${PWD}\output:/output `
-  resume-tailor generate --format pdf --output /output/
-```
-
-The tool walks you through it: paste your resume, paste the job description, answer a few questions, get your tailored resume.
-
----
-
-### Accessing local files in Docker
-
-Your **Downloads**, **Desktop**, and **Documents** folders are automatically mounted read-only into the container. You can reference files using their original paths — they're converted automatically:
-
-```
-~/Downloads/resume.pdf       → /mnt/downloads/resume.pdf
-~/Documents/my_resume.docx   → /mnt/documents/my_resume.docx
-~/Desktop/job_posting.txt    → /mnt/desktop/job_posting.txt
-```
-
-You can also place files in the `input/` folder in the project directory — they'll be available at `/mnt/input/` inside the container.
-
----
-
-### Option B: Install locally (no Docker)
-
-Best if you want to hack on the code, use free local models via Ollama, or avoid Docker.
-
-> **Note:** Ollama (free local models) is only supported when running locally — not inside Docker. LLM models are too large to run efficiently inside containers.
-
-**1. Clone and install**
-
-```bash
-git clone https://github.com/allen92524/resume-tailor.git
-cd resume-tailor
-
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**2. Install LibreOffice** (only needed for PDF output)
+<details>
+<summary>On Windows? Use this instead for the activate step</summary>
 
 ```bash
-# Ubuntu / Debian
-sudo apt install libreoffice-writer -y
+venv\Scripts\activate
+```
+</details>
 
-# macOS
-brew install --cask libreoffice
+### 2. Choose your AI
 
-# Windows — download from https://www.libreoffice.org/download/
-# Or just use --format docx to skip this step
+**Option A: Claude API** (best quality, costs ~$0.03 per resume)
+
+Get your API key at https://console.anthropic.com/settings/keys — it starts with `sk-ant-`. Then:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
 ```
 
-**3. Set up your AI backend**
+**Option B: Ollama** (completely free, runs locally)
+
+Install Ollama from https://ollama.com/download, then download a model:
 
 ```bash
-# Option 1: Claude API (best quality)
-export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+ollama pull qwen3.5
+```
+
+### 3. Generate your first resume
+
+```bash
+# With Claude API (default)
 python src/main.py generate
 
-# Option 2: Ollama (free, local)
-# Install Ollama: https://ollama.com/download
-ollama pull qwen3.5
+# With Ollama (free)
 python src/main.py generate --model ollama:qwen3.5
 ```
 
+That's it! The tool walks you through everything step by step.
+
 ---
 
-## What Your First Run Looks Like
+## What Happens When You Run It
 
 ```
 $ python src/main.py generate
@@ -147,109 +78,122 @@ $ python src/main.py generate
   Resume Tailor - AI-Powered Resume Generator
 ==================================================
 
-Using profile resume for Jane Doe
+--- Step 1: Your Resume ---
+Paste your resume below (or enter a file path like ~/Downloads/resume.pdf).
+Type END on its own line when done.
 
 --- Step 4: Target Job Description ---
-Provide the job description: paste content below, or enter a file path.
-/path/to/job_posting.txt
+Paste the job description (or enter a file path).
 
-  Words:    287
   Role:     Senior Platform Engineer
   Company:  Dataflow Inc.
-Is this correct? [Y/n]:
+Is this correct? [Y/n]: y
 
---- Step 5: JD Analysis ---
-Analysis complete. Role: Senior Platform Engineer
-Key skills identified: Python, Go, Kubernetes, distributed systems, CI/CD
-
---- Step 6: Gap Analysis & Follow-Up Questions ---
+--- Step 6: Gap Analysis ---
 Your resume already matches well on:
-  - Python backend development
-  - Cloud infrastructure (AWS)
-  - CI/CD pipeline experience
+  + Python backend development
+  + Cloud infrastructure (AWS)
 
-I have a few questions based on gaps between your resume and the JD.
-
-  Do you have experience with Go or similar systems languages?
+I have a few questions to strengthen your resume:
+  Do you have experience with Go?
   → Built internal CLI tools in Go for deployment automation
 
---- Step 7: Compatibility Assessment ---
+--- Step 7: Compatibility Score ---
   Match Score: [████████████████░░░░] 78%
 
-  Strong Matches:
-    + Python backend and API development
-    + Kubernetes and containerization
-
-Match score: 78%. Proceed with generation? [Y/n]:
+Proceed with generation? [Y/n]: y
 
 --- Step 8: Generating Tailored Resume ---
-Resume content generated.
-
 Done! Your tailored resume has been saved to:
   output/Jane_Doe_Dataflow_Sr_Platform_Eng.pdf
 ```
 
 ## Features
 
-- **Save your resume once, reuse everywhere** — profile system remembers your resume and contact info
-- **Smart gap analysis** — AI identifies what's missing and asks targeted questions
-- **Experience bank** — remembers your answers so you never re-type the same thing
-- **Match score** — see a 0-100% compatibility score before you commit to generating
-- **Resume review** — standalone command to improve your base resume with AI feedback
-- **Multi-format** — output as DOCX, PDF, or Markdown
-- **ATS-friendly** — clean formatting that passes automated screening systems
-- **Multi-profile** — manage resumes for different people on the same machine
-- **Session restore** — re-run with `--resume-session` to try different answers
-- **Dry-run mode** — test the full flow without using API credits
-- **Local or cloud AI** — use Claude API or free local Ollama models (local install only)
+- **Just answer questions** — the AI does the writing, you provide the facts
+- **Remembers everything** — save your resume once, reuse it for every application
+- **Smart questions** — only asks about gaps between your resume and the job posting
+- **Match score** — see a 0-100% compatibility score before generating
+- **Experience bank** — remembers your answers so you never retype the same thing
+- **Resume review** — get AI feedback to improve your base resume
+- **Multiple formats** — DOCX, PDF, or Markdown output
+- **ATS-friendly** — clean formatting that passes automated resume screening
+- **Multiple profiles** — manage resumes for different people on the same machine
+- **Privacy first** — your data stays on your machine, nothing is uploaded
 
-## Commands
+## Common Tasks
 
-| Command | What it does |
-|---------|-------------|
-| `generate` | Full pipeline: analyze job posting, score your fit, generate tailored resume |
-| `review` | Get AI feedback on your base resume and apply improvements |
-| `profile view` | See what's in your profile |
-| `profile update` | Change your name, email, phone, etc. |
-| `profile edit` | Open your profile in a text editor |
-| `profile export` | Print your profile as readable text |
-| `profile backup` | Save a backup copy of your profile |
-| `profile restore` | Restore a previous backup |
-| `profile reset` | Delete your profile and start fresh |
+### Apply to a new job
 
-### Key Flags
+```bash
+python src/main.py generate
+```
 
-| Flag | Works with | What it does |
-|------|-----------|-------------|
-| `--format pdf` | `generate` | Output as PDF (also: `docx`, `md`, `all`) |
-| `--model ollama:qwen3.5` | `generate`, `review` | Use a local model instead of Claude |
-| `--skip-questions` | `generate` | Skip the follow-up questions |
-| `--skip-assessment` | `generate` | Skip the compatibility score |
-| `--resume-session` | `generate` | Reuse inputs from your last run |
-| `--dry-run` | `generate` | Test without calling any AI |
-| `--profile wife` | any | Use a different profile |
-| `--verbose` | any | Show detailed logs |
+### Get your resume reviewed and improved
+
+```bash
+python src/main.py review
+```
+
+### Output as PDF
+
+```bash
+python src/main.py generate --format pdf
+```
+
+> PDF requires LibreOffice. Install it: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Or just use `--format docx`.
+
+### Manage a resume for someone else
+
+```bash
+python src/main.py --profile wife generate
+python src/main.py --profile wife profile view
+```
+
+### Retry with different answers
+
+```bash
+python src/main.py generate --resume-session
+```
+
+### Skip straight to generation (no questions)
+
+```bash
+python src/main.py generate --skip-questions --skip-assessment
+```
+
+### Test the full flow without using any AI
+
+```bash
+python src/main.py generate --dry-run
+```
 
 See [USAGE.md](USAGE.md) for the complete reference with all flags, workflows, and troubleshooting.
 
-## REST API
+## For Developers
 
-Resume Tailor also runs as a web API for programmatic access.
+<details>
+<summary>Docker, REST API, Kubernetes, and more</summary>
+
+### Docker (Claude API only)
 
 ```bash
-# Start the server
-make api
+docker build -t resume-tailor .
 
-# Health check
-curl http://localhost:8000/api/v1/health
-
-# Generate a resume
-curl -X POST http://localhost:8000/api/v1/generate \
-  -H "Content-Type: application/json" \
-  -d '{"resume_text": "Jane Doe...", "jd_text": "Senior Python Developer..."}'
+docker run -it \
+  -e ANTHROPIC_API_KEY="sk-ant-your-key" \
+  -v ~/.resume-tailor:/root/.resume-tailor \
+  -v $(pwd)/output:/output \
+  resume-tailor generate --format pdf --output /output/
 ```
 
-API docs at http://localhost:8000/docs (interactive Swagger UI).
+> Ollama is not supported inside Docker — LLM models are too large for containers. Use Ollama with the local install instead.
+
+### REST API
+
+```bash
+make api    # Start server at http://localhost:8000
+```
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -260,55 +204,34 @@ API docs at http://localhost:8000/docs (interactive Swagger UI).
 | `POST` | `/api/v1/generate/pdf` | Generate and download as PDF |
 | `POST` | `/api/v1/review` | Review resume with AI feedback |
 
-## Supported Ollama Models
+API docs: http://localhost:8000/docs
 
-Any Ollama model works. Some popular choices:
-
-| Model | Flag | Notes |
-|-------|------|-------|
-| Qwen 3.5 | `--model ollama:qwen3.5` | Good all-around, recommended |
-| Devstral | `--model ollama:devstral` | Strong at technical resumes |
-| Gemma 3 | `--model ollama:gemma3` | Lightweight option |
-
-## Privacy
-
-Resume Tailor stores all data locally on your machine:
-
-- **Profiles** are saved to `~/.resume-tailor/` (or `$HOME/.resume-tailor/` in Docker). They never leave your machine.
-- **Generated resumes** are written to the `output/` directory. Nothing is uploaded anywhere.
-- **API calls** send your resume text and job description to the LLM provider (Anthropic or your local Ollama). If you use Ollama, all processing stays on your machine.
-- **Git safety** — a pre-commit hook scans for emails, phone numbers, and LinkedIn URLs to prevent accidental commits of personal info. Run `make check-secrets` to scan the full repo anytime.
-
-To enable the pre-commit hook:
+### Kubernetes (Helm)
 
 ```bash
-git config core.hooksPath .githooks
+make helm-install
+kubectl port-forward svc/resume-tailor 8000:8000
 ```
 
-## Contributing
+See [USAGE.md](USAGE.md) for Helm values, ArgoCD setup, and monitoring.
+
+### Contributing
 
 ```bash
 make dev-install   # Install dev dependencies
 make test          # Run tests
 make lint          # Run linter
 make format        # Format code
-make check-secrets # Scan repo for personal info patterns
+make check-secrets # Scan for accidentally committed personal info
 ```
 
-### Recommended repo settings
+</details>
 
-To ensure the auto-release workflow works correctly, configure your GitHub repo to use **Squash and merge** as the default merge strategy:
+## Privacy
 
-1. Go to **Settings → General → Pull Requests**
-2. Uncheck "Allow merge commits" and "Allow rebase merging"
-3. Check **"Allow squash merging"** and set the default commit message to **"Pull request title"**
-
-With squash merging, the PR title becomes the merge commit message. Use [conventional commit](https://www.conventionalcommits.org/) prefixes in your PR titles:
-
-- `feat: ...` → triggers a **minor** version bump
-- `fix: ...` → triggers a **patch** version bump
-- `feat!: ...` or body contains `BREAKING CHANGE` → triggers a **major** version bump
-- Anything else → no release
+- **Profiles** are saved locally at `~/.resume-tailor/`. They never leave your machine.
+- **Generated resumes** go to the `output/` folder. Nothing is uploaded.
+- **Claude API** sends your resume and job description to Anthropic for processing. If you use **Ollama**, everything stays on your machine.
 
 ## License
 
