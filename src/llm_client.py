@@ -53,12 +53,19 @@ def resolve_claude_model(model: str) -> str:
     """Resolve a Claude model string to an API model ID.
 
     'claude' -> default (Sonnet), 'claude:haiku' -> haiku model ID, etc.
+    Raises ValueError for unknown variants.
     """
     if model == "claude":
         return CLAUDE_MODEL
     if model.startswith("claude:"):
         variant = model.split(":", 1)[1]
-        return CLAUDE_MODELS.get(variant, CLAUDE_MODEL)
+        if variant not in CLAUDE_MODELS:
+            valid = ", ".join(CLAUDE_MODELS.keys())
+            raise ValueError(
+                f"Unknown Claude variant '{variant}'. "
+                f"Valid options: {valid}"
+            )
+        return CLAUDE_MODELS[variant]
     return model
 
 
@@ -607,14 +614,22 @@ def call_llm(
         )
     else:
         # Use existing Claude API with retry logic
+        import anthropic as _anthropic
         from .api import call_api
 
         # Resolve "claude" / "claude:<variant>" to actual model ID
         api_model = resolve_claude_model(model)
-        return call_api(
-            model=api_model,
-            max_tokens=max_tokens,
-            system=system,
-            user_content=user_content,
-            messages=messages,
-        )
+        try:
+            return call_api(
+                model=api_model,
+                max_tokens=max_tokens,
+                system=system,
+                user_content=user_content,
+                messages=messages,
+            )
+        except _anthropic.NotFoundError:
+            raise RuntimeError(
+                f"Model '{api_model}' was not found by the Anthropic API. "
+                f"It may have been renamed or deprecated. "
+                f"Please update the model ID in src/config.py."
+            )

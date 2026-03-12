@@ -6,9 +6,9 @@ import os
 DEFAULT_MODEL = "claude"
 CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
 CLAUDE_MODELS = {
-    "haiku": "claude-haiku-4-5-20250929",
+    "haiku": "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-5-20250929",
-    "opus": "claude-opus-4-5-20250929",
+    "opus": "claude-opus-4-20250514",
 }
 CLAUDE_DEFAULT_VARIANT = "sonnet"
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
