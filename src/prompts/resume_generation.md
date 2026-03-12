@@ -4,9 +4,10 @@ Given the candidate's original resume and the target job analysis, generate a ta
 
 If the job analysis includes "company_context", use it to calibrate tone and emphasis:
 - For startups: emphasize speed, breadth, ownership, and impact with lean teams
-- For enterprise: emphasize scale, cross-team coordination, reliability, and process maturity
-- For research-oriented companies: emphasize technical depth, novel approaches, and publications/talks
-- Match the vocabulary and framing style to what resonates at this type of company
+- For enterprise/large organizations: emphasize scale, cross-team coordination, reliability, and process maturity
+- For research-oriented organizations: emphasize depth, novel approaches, and publications/talks
+- For public sector/nonprofit: emphasize mission alignment, compliance, and community impact
+- Match the vocabulary and framing style to what resonates at this type of organization
 
 Respond with valid JSON matching this exact structure:
 {{
@@ -27,12 +28,8 @@ Respond with valid JSON matching this exact structure:
     }}
   ],
   "skills": {{
-    "Languages": ["relevant programming languages"],
-    "Infrastructure": ["infrastructure tools and platforms"],
-    "CI/CD & DevOps": ["CI/CD and DevOps tools"],
-    "Observability": ["monitoring and observability tools"],
-    "Version Control": ["version control tools"],
-    "Cloud & Security": ["cloud platforms and security tools"]
+    "Category Name": ["relevant skills for this category"],
+    "Another Category": ["more relevant skills"]
   }},
   "education": [
     {{
@@ -41,44 +38,48 @@ Respond with valid JSON matching this exact structure:
       "year": "Graduation Year or null"
     }}
   ],
-  "certifications": ["list of certifications, or empty list"]
+  "certifications": ["list of certifications, or empty list"],
+  "publications": ["list of publications, or empty list"],
+  "awards": ["list of awards or honors, or empty list"],
+  "volunteer": ["list of volunteer experience, or empty list"],
+  "licenses": ["list of professional licenses, or empty list"]
 }}
 
 Rules:
 - Reorder and reword experience bullets to emphasize relevance to the target role
 - Incorporate keywords from the job analysis naturally
-- Use strong action verbs: Led, Architected, Delivered, Optimized, etc.
+- Use strong action verbs appropriate to the candidate's profession (e.g. Led, Delivered, Improved, Managed, Designed, Coordinated)
 - Quantify achievements wherever the original resume provides numbers
 - Prioritize the most relevant skills for the target role
 - SKILLS MUST be grouped by category as an object/dict, NEVER as a flat comma-separated list
-- Use these default categories: Languages, Infrastructure, CI/CD & DevOps, Observability, Version Control, Cloud & Security — but you may adjust, add, or remove categories to best match the target JD (e.g. add "Frameworks" or "Databases" if relevant)
+- Infer appropriate skill categories from the candidate's resume and target JD — categories should match the profession (e.g. a nurse might have "Clinical Skills", "Certifications", "Patient Care"; an engineer might have "Languages", "Infrastructure", "Cloud"; a teacher might have "Subjects", "Classroom Technology", "Certifications")
+- Use 3-6 categories that make sense for this specific role and candidate
 - Each category value must be a list of skill strings
 - If the job analysis includes "style_insights" (from a reference resume), adopt the bullet framing style, keyword strategy, section emphasis, and tone described there — but NEVER copy actual content from the reference resume
 
 CAREER GROWTH RULES — apply these to show professional progression across roles:
 - Analyze the candidate's roles chronologically to detect their career progression pattern
-- Most recent role: use leadership language, strategic impact, ownership scope (e.g. "Architected", "Drove", "Established")
-- Middle roles: emphasize execution, technical depth, team contribution (e.g. "Engineered", "Implemented", "Collaborated")
-- Earliest roles: focus on foundational skills, individual contribution (e.g. "Developed", "Built", "Configured")
+- Most recent role: use leadership language, strategic impact, ownership scope (e.g. "Spearheaded", "Drove", "Established")
+- Middle roles: emphasize execution, depth, team contribution (e.g. "Implemented", "Managed", "Collaborated")
+- Earliest roles: focus on foundational skills, individual contribution (e.g. "Supported", "Assisted", "Contributed")
 - NEVER repeat the same action verb across different roles — each role needs unique verbs
 - Highlight different aspects of each role — find what's unique about that position
 - Don't repeat the same achievement reworded across different roles
-- Industry timeline awareness: use technology terminology appropriate to each role's era
+- Industry timeline awareness: use terminology appropriate to each role's era and profession
   - Look at the dates for each role and use language that reflects what was standard at that time
   - Latest role should use current industry language and modern terminology
-  - Don't retrofit old roles with modern buzzwords (e.g. don't call 2015 work "cloud-native" if it wasn't)
-  - Show progression: traditional → modern → cutting-edge approaches
-- These rules apply to ANY career field — engineering, product, design, data science, management, etc.
+  - Don't retrofit old roles with modern buzzwords that weren't used at the time
+  - Show progression: foundational → experienced → expert approaches
+- These rules apply to ANY career field — healthcare, education, engineering, sales, design, management, etc.
 
 Reframing Rules — use these to translate experience into language that resonates with the target role:
-- Reframe "managed/maintained" as "scaled and operated" when describing infrastructure work
-- Reframe build system work as "backend systems" or "platform services" when applying to backend roles
-- Reframe CI/CD pipeline work as "data pipeline" or "automation pipeline" experience when relevant
-- Reframe Perforce/GitLab infrastructure as "distributed systems" since they serve globally distributed teams
-- Reframe monitoring/alerting work as "observability platform engineering"
-- Reframe tiger team work as "technical leadership" and "cross-functional collaboration"
-- Reframe on-call/incident response as "SRE practices" and "production reliability"
-- Always emphasize scale numbers (765+ users, 40+ servers, 40% improvement) prominently
+- Analyze the candidate's profession and the target role to determine appropriate reframing
+- Reframe experience using the vocabulary and framing of the target industry and role
+  - Example (engineering): "managed servers" → "scaled and operated infrastructure"
+  - Example (healthcare): "helped patients" → "delivered patient-centered care"
+  - Example (education): "taught classes" → "designed and facilitated curriculum"
+  - Example (sales): "sold products" → "drove revenue growth through consultative selling"
+- Always emphasize measurable impact: numbers, scale, outcomes, improvements
 - Never fabricate experience — only reframe what actually exists in the base resume
 
 {%TRUTHFULNESS%}

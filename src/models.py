@@ -84,6 +84,10 @@ class ResumeContent:
     skills: list[str] = field(default_factory=list)
     education: list[EducationEntry] = field(default_factory=list)
     certifications: list[str] = field(default_factory=list)
+    publications: list[str] = field(default_factory=list)
+    awards: list[str] = field(default_factory=list)
+    volunteer: list[str] = field(default_factory=list)
+    licenses: list[str] = field(default_factory=list)
 
     @staticmethod
     def _normalize_skills(skills: list[str] | dict[str, list[str]]) -> list[str]:
@@ -127,6 +131,10 @@ class ResumeContent:
             skills=cls._normalize_skills(data.get("skills", [])),
             education=edu_list,
             certifications=data.get("certifications", []),
+            publications=data.get("publications", []),
+            awards=data.get("awards", []),
+            volunteer=data.get("volunteer", []),
+            licenses=data.get("licenses", []),
         )
 
     def to_dict(self) -> dict:
@@ -147,6 +155,10 @@ class ResumeContent:
                 for e in self.education
             ],
             "certifications": self.certifications,
+            "publications": self.publications,
+            "awards": self.awards,
+            "volunteer": self.volunteer,
+            "licenses": self.licenses,
         }
 
 
