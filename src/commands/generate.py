@@ -1,0 +1,906 @@
+"""Generate CLI command."""
+
+import logging
+import os
+import sys
+
+import click
+
+from src.config import (
+    DEFAULT_MODEL,
+    MAX_GAP_QUESTIONS,
+    DEFAULT_OUTPUT_FORMAT,
+)
+from src.llm_client import is_ollama_model, get_ollama_model_name, prepare_ollama
+from src.models import (
+    ResumeContent,
+    JDAnalysis,
+    GapAnalysis,
+    CompatibilityAssessment,
+    ResumeReview,
+    ReviewWeakness,
+)
+from src.resume_parser import collect_resume_text, validate_resume_content
+from src.jd_analyzer import analyze_jd, collect_jd_text
+from src.gap_analyzer import analyze_gaps
+from src.compatibility_assessor import assess_compatibility, display_assessment
+from src.resume_generator import generate_tailored_resume
+from src.docx_builder import build_resume, open_file
+from src.session import save_session, load_session
+from src.resume_reviewer import (
+    review_resume,
+    improve_resume,
+    display_review,
+    resolve_resume_placeholders,
+)
+from src.profile import (
+    load_profile,
+    save_profile,
+    first_run_setup,
+    lookup_experience,
+    save_experience,
+    append_history,
+    save_preferences,
+    get_preferences,
+)
+from src.commands.common import (
+    validate_api_key,
+    select_model_interactive,
+    summarize_resume as _summarize_resume,
+    summarize_jd as _summarize_jd,
+    capture_writing_preference as _capture_writing_preference,
+    fill_review_placeholders as _fill_review_placeholders,
+    load_mock_fixture as _load_mock_fixture,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@click.command()
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["docx", "pdf", "md", "all"], case_sensitive=False),
+    default=None,
+    help="Output format (default: docx, or saved preference).",
+)
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(),
+    default=None,
+    help="Output file or directory path (default: output/ folder, or saved preference).",
+)
+@click.option(
+    "--skip-questions",
+    is_flag=True,
+    default=False,
+    help="Skip follow-up questions for a quick run.",
+)
+@click.option(
+    "--skip-assessment",
+    is_flag=True,
+    default=False,
+    help="Skip the compatibility assessment step.",
+)
+@click.option(
+    "--reference",
+    "reference_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a reference resume from someone in a similar role.",
+)
+@click.option(
+    "--resume-session",
+    is_flag=True,
+    default=False,
+    help="Reload resume and JD from the last saved session.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Use mock API responses instead of calling Claude. For testing without spending credits.",
+)
+@click.option(
+    "--model",
+    default=None,
+    help="LLM model to use. 'claude' for Anthropic API, or 'ollama:<name>' for local Ollama.",
+)
+@click.pass_context
+def generate(
+    ctx,
+    output_format: str | None,
+    output_path: str | None,
+    skip_questions: bool,
+    skip_assessment: bool,
+    reference_path: str | None,
+    resume_session: bool,
+    dry_run: bool,
+    model: str | None,
+):
+    """Generate a tailored resume from your resume and a job description."""
+    pname = ctx.obj["profile_name"]
+
+    # Step 1: Model selection — first thing, before any LLM calls
+    if dry_run:
+        model = model or DEFAULT_MODEL
+        click.echo(
+            click.style("[DRY RUN] Using mock API responses.", fg="yellow", bold=True)
+        )
+    elif model is None:
+        # Load profile only to check saved model preference (no LLM calls)
+        existing_prof = load_profile(pname)
+        prefs = get_preferences(existing_prof) if existing_prof else {}
+        model = select_model_interactive(prefs)
+
+    # Validate/prepare the chosen backend before any LLM calls
+    if not dry_run:
+        if is_ollama_model(model):
+            click.echo(f"Using local Ollama model: {get_ollama_model_name(model)}")
+            try:
+                prepare_ollama(model)
+            except (ConnectionError, RuntimeError) as e:
+                click.echo(f"Error: {e}")
+                sys.exit(1)
+        else:
+            validate_api_key()
+
+    # Load or create profile (now uses the selected model for any LLM calls)
+    prof = load_profile(pname)
+    if not prof:
+        prof = first_run_setup(pname, model=model)
+
+    # Save model preference if different from what's stored
+    if not dry_run:
+        prefs = get_preferences(prof)
+        if prefs.get("model") != model:
+            prof.preferences["model"] = model
+            save_profile(prof, pname)
+
+    # Apply saved preferences as defaults (flags override)
+    prefs = get_preferences(prof)
+    if output_format is None:
+        output_format = prefs.get("format", DEFAULT_OUTPUT_FORMAT)
+    if output_path is None:
+        output_path = prefs.get("output_path")
+
+    # Periodic baseline review prompt for returning users
+    if (
+        not dry_run
+        and prof.base_resume
+        and prof.applications_since_review >= 10
+    ):
+        click.echo(
+            click.style(
+                f"\nYou've generated {prof.applications_since_review} resumes since "
+                "your last baseline review.",
+                fg="yellow",
+                bold=True,
+            )
+        )
+        if click.confirm("Want to review your baseline resume?", default=False):
+            click.echo("Reviewing your baseline resume...")
+            try:
+                review_result = review_resume(prof.base_resume, model=model)
+                display_review(review_result)
+                review_result = _fill_review_placeholders(review_result)
+
+                if click.confirm(
+                    "Incorporate these suggestions?", default=False
+                ):
+                    all_skipped: list[str] = []
+                    for b in review_result.improved_bullets:
+                        all_skipped.extend(b.skipped_placeholders)
+
+                    click.echo("Improving your resume...")
+                    improved = improve_resume(
+                        prof.base_resume,
+                        review_result,
+                        skipped_placeholders=all_skipped or None,
+                        model=model,
+                    )
+                    improved = resolve_resume_placeholders(improved)
+                    prof.base_resume = improved
+                    prof.applications_since_review = 0
+                    save_profile(prof, pname)
+                    click.echo("Base resume updated.")
+                else:
+                    # Reset counter even if they decline
+                    prof.applications_since_review = 0
+                    save_profile(prof, pname)
+            except Exception as e:
+                logger.warning("Baseline review failed: %s", e)
+                click.echo(f"Warning: Review failed ({e}). Continuing.")
+
+    # Experience bank review — prompt after every 10 applications
+    if (
+        not dry_run
+        and prof.experience_bank
+        and prof.applications_since_review >= 10
+    ):
+        click.echo(
+            click.style(
+                "\nTime for a quick experience bank review — some answers might be outdated.",
+                fg="yellow",
+            )
+        )
+        if click.confirm("Review your saved answers?", default=False):
+            keys_to_delete: list[str] = []
+            for skill, answer in list(prof.experience_bank.items()):
+                preview = answer[:80] + "..." if len(answer) > 80 else answer
+                click.echo(f"\n  {skill}: {preview}")
+                action = click.prompt(
+                    "    [Enter] Keep  |  [u] Update  |  [d] Delete",
+                    default="",
+                    show_default=False,
+                ).strip().lower()
+                if action == "d":
+                    keys_to_delete.append(skill)
+                    click.echo("    Deleted.")
+                elif action == "u":
+                    new_answer = click.prompt(
+                        "    New answer",
+                        default="",
+                        show_default=False,
+                    ).strip()
+                    if new_answer:
+                        prof.experience_bank[skill] = new_answer
+                        click.echo("    Updated.")
+            for key in keys_to_delete:
+                del prof.experience_bank[key]
+            if keys_to_delete or any(
+                prof.experience_bank.get(k) != v
+                for k, v in list(prof.experience_bank.items())
+            ):
+                save_profile(prof, pname)
+                click.echo("Experience bank updated.")
+
+    click.echo("\n" + "=" * 50)
+    click.echo("  Resume Tailor - AI-Powered Resume Generator")
+    click.echo("=" * 50)
+
+    # Use profile resume if available
+    identity = prof.identity
+    profile_name = identity.name
+    has_profile_resume = bool(prof.base_resume)
+
+    # Track optional reference resume
+    reference_text = None
+
+    # Try to restore from session
+    session = None
+    if resume_session:
+        session = load_session(pname)
+        if session:
+            resume_text = session["resume_text"]
+            jd_text = session["jd_text"]
+            saved_at = session.get("saved_at", "unknown time")
+            click.echo(f"\nRestored session from {saved_at}")
+
+            r_summary = _summarize_resume(resume_text)
+            name_part = (
+                f", name: {r_summary['detected_name']}"
+                if r_summary["detected_name"]
+                else ""
+            )
+            click.echo(f"  Resume: {r_summary['word_count']} words{name_part}")
+            j_summary = _summarize_jd(jd_text)
+            role_part = (
+                f", role: {j_summary['detected_title']}"
+                if j_summary["detected_title"]
+                else ""
+            )
+            click.echo(f"  JD: {j_summary['word_count']} words{role_part}")
+
+            if not click.confirm("Use this session?", default=True):
+                click.echo("Session discarded. Collecting fresh input.\n")
+                resume_session = False  # fall through to manual collection
+            else:
+                click.echo("")
+        else:
+            click.echo("\nNo saved session found. Collecting fresh input.\n")
+            resume_session = False
+
+    if not resume_session:
+        # Step 1: Resume Input
+        if has_profile_resume:
+            resume_text = prof.base_resume
+            click.echo(f"\nUsing profile resume for {profile_name}")
+        else:
+            click.echo("\n--- Step 1: Your Resume ---")
+            try:
+                resume_text = collect_resume_text()
+            except (FileNotFoundError, ValueError) as e:
+                click.echo(f"Error: {e}")
+                sys.exit(1)
+
+            if not resume_text:
+                click.echo("Error: No resume text provided.")
+                sys.exit(1)
+
+            # Validate that it looks like an actual resume
+            while not validate_resume_content(resume_text):
+                click.echo(
+                    click.style(
+                        "\nThis doesn't look like a resume. "
+                        "Did you paste the right content?",
+                        fg="yellow",
+                        bold=True,
+                    )
+                )
+                if not click.confirm("Try again?", default=True):
+                    click.echo("Exiting.")
+                    sys.exit(0)
+                try:
+                    resume_text = collect_resume_text()
+                except (FileNotFoundError, ValueError) as e:
+                    click.echo(f"Error: {e}")
+                    sys.exit(1)
+                if not resume_text:
+                    click.echo("Error: No resume text provided.")
+                    sys.exit(1)
+
+            # Show resume summary and confirm
+            r_summary = _summarize_resume(resume_text)
+            click.echo(f"\n  Words:  {r_summary['word_count']}")
+            if r_summary["detected_name"]:
+                click.echo(f"  Name:   {r_summary['detected_name']}")
+            if r_summary["role_count"]:
+                click.echo(f"  Roles:  {r_summary['role_count']} detected")
+            if not click.confirm("Is this correct?", default=True):
+                click.echo("Please re-run and provide the correct resume.")
+                sys.exit(0)
+
+        # Returning user check: anything new since last application?
+        if has_profile_resume and not dry_run:
+            click.echo("\n--- Returning User Check ---")
+            new_input = click.prompt(
+                "Anything new since your last application? "
+                "New skills, projects, certifications? (Enter to skip)",
+                default="",
+                show_default=False,
+            ).strip()
+            if new_input:
+                # Update base_resume with new info via LLM
+                click.echo("Updating your baseline resume with new information...")
+                try:
+                    # Build a minimal review that tells the LLM to incorporate new info
+                    update_review = ResumeReview(
+                        overall_score=80,
+                        strengths=["Existing resume is solid"],
+                        weaknesses=[
+                            ReviewWeakness(
+                                section="General",
+                                issue="Missing recent experience",
+                                suggestion=f"Incorporate the following new information: {new_input}",
+                            )
+                        ],
+                    )
+                    updated = improve_resume(
+                        prof.base_resume, update_review, model=model
+                    )
+                    updated = resolve_resume_placeholders(updated)
+
+                    click.echo("\nUpdated resume preview (first 500 chars):")
+                    click.echo(updated[:500] + ("..." if len(updated) > 500 else ""))
+                    if click.confirm("Save this update to your profile?", default=True):
+                        resume_text = updated
+                        prof.base_resume = updated
+                        save_profile(prof, pname)
+                        click.echo("Profile updated.")
+                    else:
+                        click.echo("Keeping existing resume.")
+                except Exception as e:
+                    logger.warning("Failed to update resume: %s", e)
+                    click.echo(f"Warning: Could not update resume ({e}). Continuing with existing.")
+
+                # Save new info to experience bank
+                save_experience(prof, "recent_updates", new_input, pname)
+
+        # Step 2: Reference Resume (Optional)
+        click.echo("\n--- Step 2: Reference Resume (Optional) ---")
+        if reference_path:
+            from src.resume_parser import read_resume_from_file
+
+            try:
+                reference_text = read_resume_from_file(reference_path)
+                click.echo(f"Reference resume loaded from {reference_path}")
+            except (FileNotFoundError, ValueError) as e:
+                logger.warning("Could not load reference resume: %s", e)
+                click.echo(f"Warning: Could not load reference resume ({e}). Skipping.")
+        else:
+            ref_input = click.prompt(
+                "Do you have a reference resume from someone in a similar role? "
+                "(file path or Enter to skip)",
+                default="",
+                show_default=False,
+            ).strip()
+            if ref_input:
+                from src.resume_parser import read_resume_from_file
+
+                try:
+                    reference_text = read_resume_from_file(ref_input)
+                    r_ref = _summarize_resume(reference_text)
+                    click.echo(
+                        f"  Reference resume loaded: {r_ref['word_count']} words"
+                    )
+                except (FileNotFoundError, ValueError) as e:
+                    logger.warning("Could not load reference resume: %s", e)
+                    click.echo(
+                        f"  Warning: Could not load reference resume ({e}). Skipping."
+                    )
+
+        # Step 3: Resume Review with Q&A (skip if profile already has a reviewed resume)
+        if not dry_run and not has_profile_resume:
+            click.echo("\n--- Step 3: Resume Review ---")
+            click.echo("Reviewing your resume...")
+            try:
+                from src.profile import _ask_weakness_questions
+
+                review_result = review_resume(resume_text, model=model)
+                display_review(review_result)
+
+                # Walk through each weakness with targeted questions
+                answers, all_skipped = _ask_weakness_questions(review_result, model=model)
+
+                if answers:
+                    answer_context = "\n".join(
+                        f"- {issue}: {answer}" for issue, answer in answers.items()
+                    )
+                    review_result.weaknesses.append(
+                        ReviewWeakness(
+                            section="User Provided",
+                            issue="Additional context from user",
+                            suggestion=f"Incorporate these details:\n{answer_context}",
+                        )
+                    )
+
+                    click.echo("Improving your resume with your answers...")
+                    try:
+                        improved = improve_resume(
+                            resume_text,
+                            review_result,
+                            skipped_placeholders=all_skipped or None,
+                            model=model,
+                        )
+                    except Exception as e:
+                        logger.error("Resume improvement failed: %s", e)
+                        click.echo(f"Error improving resume: {e}")
+                        improved = None
+
+                    if improved:
+                        improved = resolve_resume_placeholders(improved)
+                        click.echo("\nImproved resume preview:")
+                        click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+                        if click.confirm("Save this improved version?", default=True):
+                            resume_text = improved
+                            prof.base_resume = improved
+                            save_profile(prof, pname)
+                            click.echo("Base resume updated and saved.")
+                        else:
+                            click.echo("Keeping original resume.")
+
+                    # Save answers to experience bank
+                    for issue, answer in answers.items():
+                        save_experience(prof, issue, answer, pname)
+            except Exception as e:
+                logger.warning("Resume review failed: %s", e)
+                click.echo(f"Warning: Resume review failed ({e}). Continuing.")
+
+        # Step 4: JD Input
+        click.echo("\n--- Step 4: Target Job Description ---")
+        jd_text = collect_jd_text()
+
+        if not jd_text:
+            click.echo("Error: No job description provided.")
+            sys.exit(1)
+
+        # Show JD summary and confirm
+        j_summary = _summarize_jd(jd_text)
+        click.echo(f"\n  Words:    {j_summary['word_count']}")
+        if j_summary["detected_title"]:
+            click.echo(f"  Role:     {j_summary['detected_title']}")
+        if j_summary["detected_company"]:
+            click.echo(f"  Company:  {j_summary['detected_company']}")
+        if not click.confirm("Is this correct?", default=True):
+            click.echo("Please re-run and provide the correct job description.")
+            sys.exit(0)
+
+        # Auto-save session
+        save_session(resume_text, jd_text, profile_name=pname)
+        click.echo("\nSession saved. Re-run with --resume-session to skip input.")
+
+    # Step 5: JD Analysis
+    click.echo("\n--- Step 5: JD Analysis ---")
+    if dry_run:
+        click.echo("[DRY RUN] Loading mock JD analysis...")
+        jd_analysis = JDAnalysis.from_dict(_load_mock_fixture("mock_jd_analysis.json"))
+    else:
+        _model_label = get_ollama_model_name(model) if is_ollama_model(model) else "Claude"
+        click.echo(f"Analyzing job description using {_model_label}...")
+        try:
+            jd_analysis = analyze_jd(jd_text, reference_text=reference_text, model=model)
+        except Exception as e:
+            logger.error("JD analysis failed: %s", e)
+            click.echo(f"Error analyzing job description: {e}")
+            sys.exit(1)
+
+    click.echo(f"Analysis complete. Role: {jd_analysis.job_title or 'N/A'}")
+    click.echo(f"Key skills identified: {', '.join(jd_analysis.required_skills[:5])}")
+    if jd_analysis.style_insights:
+        click.echo(
+            f"Reference resume style: {jd_analysis.style_insights.tone or 'analyzed'}"
+        )
+
+    # Gap analysis & follow-up questions
+    user_additions = ""
+    saved_answers: dict | None = None
+    if resume_session and session:
+        saved_answers = session.get("answers")
+
+    if not skip_questions:
+        reuse_answers = False
+
+        # If session has saved answers, offer to reuse them
+        if saved_answers:
+            click.echo("\n--- Previous Answers Found ---")
+            gap_answers_saved = saved_answers.get("gap_answers", [])
+            if gap_answers_saved:
+                click.echo("\n  Gap question answers:")
+                for a in gap_answers_saved:
+                    click.echo(f"    - {a}")
+            if saved_answers.get("extra_skills"):
+                click.echo(f"  Extra skills: {saved_answers['extra_skills']}")
+            if saved_answers.get("emphasis"):
+                click.echo(f"  Emphasis: {saved_answers['emphasis']}")
+            if saved_answers.get("job_title"):
+                click.echo(f"  Job title: {saved_answers['job_title']}")
+
+            reuse_answers = click.confirm("Use these answers again?", default=True)
+
+        if reuse_answers and saved_answers:
+            # Rebuild user_additions from saved answers
+            gap_answers = saved_answers.get("gap_answers", [])
+            extra_skills = saved_answers.get("extra_skills", "")
+            emphasis = saved_answers.get("emphasis", "")
+            job_title = saved_answers.get("job_title", "")
+        else:
+            # Run gap analysis and ask questions fresh
+            click.echo("\n--- Step 6: Gap Analysis & Follow-Up Questions ---")
+            if dry_run:
+                click.echo("[DRY RUN] Loading mock gap analysis...")
+                gap_result = GapAnalysis.from_dict(
+                    _load_mock_fixture("mock_gap_analysis.json")
+                )
+            else:
+                click.echo("Comparing your resume against the job requirements...")
+                try:
+                    gap_result = analyze_gaps(resume_text, jd_analysis, model=model)
+                except Exception as e:
+                    logger.warning("Gap analysis failed: %s", e)
+                    click.echo(
+                        f"Warning: Gap analysis failed ({e}). Continuing without it."
+                    )
+                    gap_result = GapAnalysis()
+
+            # Show strengths
+            if gap_result.strengths:
+                click.echo("\nYour resume already matches well on:")
+                for s in gap_result.strengths:
+                    click.echo(f"  - {s}")
+
+            # Ask gap questions (with experience bank lookup + conversational follow-up)
+            gap_answers: list[str] = []
+            if gap_result.gaps:
+                from src.conversation import conversational_qa
+
+                click.echo(
+                    "\nI have a few questions based on gaps between your resume and the JD."
+                    "\nAnswer each one, or press Enter to skip.\n"
+                )
+                seen_questions: set[str] = set()
+                question_count = 0
+                for gap in gap_result.gaps:
+                    # Safety: never ask more than MAX_GAP_QUESTIONS
+                    if question_count >= MAX_GAP_QUESTIONS:
+                        logger.debug(
+                            "Reached max gap questions limit (%d), stopping",
+                            MAX_GAP_QUESTIONS,
+                        )
+                        break
+                    # Skip gaps with empty questions
+                    if not gap.question.strip():
+                        continue
+                    # Deduplicate: skip if we already asked this question
+                    q_key = gap.question.strip().lower()
+                    if q_key in seen_questions:
+                        logger.debug("Skipping duplicate question: %s", gap.question)
+                        continue
+                    seen_questions.add(q_key)
+                    question_count += 1
+                    skill = gap.skill
+                    saved = lookup_experience(prof, skill)
+                    if saved:
+                        preview = saved[:70] + "..." if len(saved) > 70 else saved
+                        click.echo(f"\n  {skill}:")
+                        click.echo(f'    Saved answer: "{preview}"')
+                        click.echo(
+                            "    [Enter] Use this answer  |  [u] Update  |  [s] Skip this skill"
+                        )
+                        choice = (
+                            click.prompt(
+                                "   ",
+                                default="",
+                                show_default=False,
+                            )
+                            .strip()
+                            .lower()
+                        )
+                        if choice == "s":
+                            pass  # skip — don't include this skill
+                        elif choice == "u":
+                            answer = conversational_qa(
+                                context_type="skill gap",
+                                context_description=f"{skill}: {gap.question}",
+                                initial_question=gap.question,
+                                model=model,
+                            )
+                            if answer:
+                                gap_answers.append(f"{skill}: {answer}")
+                                save_experience(prof, skill, answer, pname)
+                        else:
+                            gap_answers.append(f"{skill}: {saved}")
+                    else:
+                        click.echo(f"\n  {skill}:")
+                        answer = conversational_qa(
+                            context_type="skill gap",
+                            context_description=f"{skill}: {gap.question}",
+                            initial_question=gap.question,
+                            model=model,
+                        )
+                        if answer:
+                            gap_answers.append(f"{skill}: {answer}")
+                            save_experience(prof, skill, answer, pname)
+
+            # Generic follow-up questions
+            click.echo("\n--- Additional Questions ---")
+            extra_skills = click.prompt(
+                "Any other skills or certifications to add?",
+                default="",
+                show_default=False,
+            )
+            emphasis = click.prompt(
+                "What aspects of your experience do you want to emphasize?",
+                default="",
+                show_default=False,
+            )
+            job_title = click.prompt(
+                "Preferred job title for the resume header? (Enter to use JD title)",
+                default="",
+                show_default=False,
+            )
+
+        # Save answers to session
+        answers_data = {
+            "gap_answers": gap_answers,
+            "extra_skills": extra_skills.strip(),
+            "emphasis": emphasis.strip(),
+            "job_title": job_title.strip(),
+        }
+        save_session(resume_text, jd_text, answers=answers_data, profile_name=pname)
+
+        # Build user_additions string
+        additions: list[str] = []
+        if gap_answers:
+            additions.append(
+                "Additional experience from candidate:\n"
+                + "\n".join(f"- {a}" for a in gap_answers)
+            )
+        if extra_skills.strip():
+            additions.append(
+                f"Additional skills/certifications: {extra_skills.strip()}"
+            )
+        if emphasis.strip():
+            additions.append(f"Candidate wants to emphasize: {emphasis.strip()}")
+        if job_title.strip():
+            additions.append(f"Preferred job title for header: {job_title.strip()}")
+
+        if additions:
+            user_additions = "Additional Context from Candidate:\n" + "\n".join(
+                additions
+            )
+
+    # Compatibility assessment step
+    match_score: int | None = None
+    if not skip_assessment:
+        click.echo("\n--- Step 7: Compatibility Assessment ---")
+        if dry_run:
+            click.echo("[DRY RUN] Loading mock compatibility assessment...")
+            assessment = CompatibilityAssessment.from_dict(
+                _load_mock_fixture("mock_compatibility.json")
+            )
+        else:
+            click.echo("Evaluating match between your resume and the job...")
+            try:
+                assessment = assess_compatibility(resume_text, jd_analysis, model=model)
+            except Exception as e:
+                logger.warning("Compatibility assessment failed: %s", e)
+                click.echo(
+                    f"Warning: Compatibility assessment failed ({e}). Continuing."
+                )
+                assessment = None
+
+        if assessment:
+            match_score = assessment.match_score
+            display_assessment(assessment)
+
+            if not assessment.proceed:
+                click.echo(
+                    click.style(
+                        "  Warning: Your match score is below 30%. "
+                        "This may be a poor fit.",
+                        fg="bright_red",
+                        bold=True,
+                    )
+                )
+                if not click.confirm("Do you still want to proceed?", default=False):
+                    click.echo("Exiting. Try a different job description.")
+                    sys.exit(0)
+            else:
+                if not click.confirm(
+                    f"Match score: {assessment.match_score}%. "
+                    "Proceed with generation?",
+                    default=True,
+                ):
+                    click.echo("Exiting.")
+                    sys.exit(0)
+
+    # Step 8: Generate Tailored Resume
+    click.echo("\n--- Step 8: Generating Tailored Resume ---")
+    if dry_run:
+        click.echo("[DRY RUN] Loading mock resume generation...")
+        resume_data = ResumeContent.from_dict(
+            _load_mock_fixture("mock_resume_generation.json")
+        )
+    else:
+        click.echo("Generating tailored resume content...")
+        try:
+            resume_data = generate_tailored_resume(
+                resume_text,
+                jd_analysis,
+                user_additions,
+                model=model,
+                writing_preferences=prof.writing_preferences or None,
+            )
+        except Exception as e:
+            logger.error("Resume generation failed: %s", e)
+            click.echo(f"Error generating resume: {e}")
+
+            # Fallback: if using Ollama, offer to switch to Claude
+            if is_ollama_model(model):
+                if click.confirm(
+                    "Local model is having issues. "
+                    "Would you like to switch to Claude API?",
+                    default=True,
+                ):
+                    validate_api_key()
+                    model = "claude"
+                    click.echo("Retrying with Claude API...")
+                    try:
+                        resume_data = generate_tailored_resume(
+                            resume_text,
+                            jd_analysis,
+                            user_additions,
+                            model=model,
+                            writing_preferences=prof.writing_preferences or None,
+                        )
+                    except Exception as e2:
+                        logger.error("Claude fallback also failed: %s", e2)
+                        click.echo(f"Error generating resume with Claude: {e2}")
+                        sys.exit(1)
+                else:
+                    sys.exit(1)
+            else:
+                sys.exit(1)
+
+    click.echo("Resume content generated.")
+
+    # Step 8b: Section-by-section review
+    if not dry_run:
+        click.echo("\n--- Review Generated Resume ---")
+
+        # Show summary
+        if resume_data.summary:
+            click.echo(click.style("\n  Summary:", bold=True))
+            click.echo(f"    {resume_data.summary}")
+            feedback = click.prompt(
+                "    Looks good? (Enter to accept, or type feedback)",
+                default="",
+                show_default=False,
+            ).strip()
+            if feedback:
+                _capture_writing_preference(prof, feedback, pname)
+
+        # Show experience
+        for exp in resume_data.experience:
+            click.echo(click.style(f"\n  {exp.title} — {exp.company}", bold=True))
+            click.echo(f"    {exp.dates}")
+            for i, bullet in enumerate(exp.bullets):
+                click.echo(f"    - {bullet}")
+
+        exp_feedback = click.prompt(
+            "\n    Experience looks good? (Enter to accept, or type feedback)",
+            default="",
+            show_default=False,
+        ).strip()
+        if exp_feedback:
+            _capture_writing_preference(prof, exp_feedback, pname)
+
+        # Show skills
+        if resume_data.skills:
+            click.echo(click.style("\n  Skills:", bold=True))
+            for skill in resume_data.skills:
+                click.echo(f"    {skill}")
+
+        click.echo("")
+
+    # Step 9: Output
+    formats = [output_format.lower()]
+    format_label = "all formats" if output_format == "all" else output_format.upper()
+    click.echo(f"\n--- Step 9: Building {format_label} ---")
+
+    default_output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "output")
+    try:
+        filepaths = build_resume(
+            resume_data,
+            output_dir=default_output_dir,
+            output_path=output_path,
+            formats=formats,
+            identity=identity,
+            jd_analysis=jd_analysis,
+        )
+    except RuntimeError as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error("Output build failed: %s", e)
+        click.echo(f"Error building output: {e}")
+        sys.exit(1)
+
+    click.echo("\nDone! Your tailored resume has been saved to:")
+    for fp in filepaths:
+        click.echo(f"  {fp}")
+
+    # Offer PDF conversion if not already generated
+    if "pdf" not in formats and any(fp.endswith(".docx") for fp in filepaths):
+        if click.confirm("Also save as PDF?", default=False):
+            from src.docx_builder import _convert_docx_to_pdf
+
+            for fp in filepaths:
+                if fp.endswith(".docx"):
+                    pdf_path = fp.rsplit(".", 1)[0] + ".pdf"
+                    try:
+                        _convert_docx_to_pdf(fp, pdf_path)
+                        click.echo(f"  {pdf_path}")
+                        filepaths.append(pdf_path)
+                    except RuntimeError as e:
+                        click.echo(f"PDF conversion failed: {e}")
+                    break
+
+    # Save to application history and increment review counter
+    company = jd_analysis.company
+    role = jd_analysis.job_title
+    for fp in filepaths:
+        append_history(prof, company, role, match_score, fp, pname)
+    prof.applications_since_review += 1
+    save_profile(prof, pname)
+
+    # Save preferences on first successful run (or update if flags were explicit)
+    if not prefs.get("format"):
+        save_preferences(prof, output_format, output_path, pname)
+
+    # Offer to open the file(s)
+    if click.confirm("\nOpen file?", default=False):
+        for fp in filepaths:
+            open_file(fp)

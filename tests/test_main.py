@@ -9,7 +9,8 @@ import pytest
 
 from click.testing import CliRunner
 
-from src.main import cli, _summarize_resume, _summarize_jd, select_model_interactive
+from src.main import cli
+from src.commands.common import _summarize_resume, _summarize_jd, select_model_interactive
 from src.models import Profile, Identity, ResumeContent
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -102,16 +103,16 @@ class TestGenerateCommand:
                 "saved_at": "2026-03-01T00:00:00Z",
             }
 
-            with patch("src.main.validate_api_key"), patch(
-                "src.main.load_profile", return_value=mock_profile
-            ), patch("src.main.save_profile"), patch(
-                "src.main.load_session", return_value=mock_session
+            with patch("src.commands.generate.validate_api_key"), patch(
+                "src.commands.generate.load_profile", return_value=mock_profile
+            ), patch("src.commands.generate.save_profile"), patch(
+                "src.commands.generate.load_session", return_value=mock_session
             ), patch(
-                "src.main.save_session"
+                "src.commands.generate.save_session"
             ), patch(
-                "src.main.append_history"
+                "src.commands.generate.append_history"
             ), patch(
-                "src.main.save_preferences"
+                "src.commands.generate.save_preferences"
             ):
 
                 result = runner.invoke(
@@ -140,7 +141,7 @@ class TestGenerateCommand:
 class TestProfileCommands:
     def test_profile_view_no_profile(self):
         runner = CliRunner()
-        with patch("src.main.load_profile", return_value=None):
+        with patch("src.commands.profile.load_profile", return_value=None):
             result = runner.invoke(cli, ["profile", "view"])
         assert result.exit_code == 0
         assert "No profile found" in result.output
@@ -154,20 +155,20 @@ class TestProfileCommands:
             history=[],
             preferences={},
         )
-        with patch("src.main.load_profile", return_value=mock_profile):
+        with patch("src.commands.profile.load_profile", return_value=mock_profile):
             result = runner.invoke(cli, ["profile", "view"])
         assert result.exit_code == 0
         assert "Sarah Chen" in result.output
 
     def test_profile_reset_no_profile(self):
         runner = CliRunner()
-        with patch("src.main.load_profile", return_value=None):
+        with patch("src.commands.profile.load_profile", return_value=None):
             result = runner.invoke(cli, ["profile", "reset"])
         assert "No profile found" in result.output
 
     def test_profile_export_no_profile(self):
         runner = CliRunner()
-        with patch("src.main.load_profile", return_value=None):
+        with patch("src.commands.profile.load_profile", return_value=None):
             result = runner.invoke(cli, ["profile", "export"])
         assert "No profile found" in result.output
 
@@ -183,14 +184,14 @@ class TestProfileCommands:
 class TestSelectModelInteractive:
     """Test the interactive model selection menu."""
 
-    @patch("src.main.list_ollama_models", return_value=[])
+    @patch("src.commands.common.list_ollama_models", return_value=[])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
     def test_only_claude_available_auto_selects(self, mock_ollama):
         """When only Claude is available, it should auto-select without prompting."""
         result = select_model_interactive({})
         assert result == "claude"
 
-    @patch("src.main.list_ollama_models", return_value=[
+    @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {}, clear=True)
@@ -200,7 +201,7 @@ class TestSelectModelInteractive:
         result = select_model_interactive({})
         assert result == "ollama:qwen3.5:latest"
 
-    @patch("src.main.list_ollama_models", return_value=[])
+    @patch("src.commands.common.list_ollama_models", return_value=[])
     @patch.dict(os.environ, {}, clear=True)
     def test_no_backends_exits(self, mock_ollama):
         """When no backends are available, should exit."""
@@ -234,19 +235,19 @@ class TestOllamaFallbackChain:
 
         mock_generation = _load_json_fixture("mock_resume_generation.json")
 
-        with patch("src.main.validate_api_key"), \
-             patch("src.main.load_profile", return_value=mock_profile), \
-             patch("src.main.save_profile"), \
-             patch("src.main.load_session", return_value=mock_session), \
-             patch("src.main.save_session"), \
-             patch("src.main.append_history"), \
-             patch("src.main.save_preferences"), \
-             patch("src.main.prepare_ollama"), \
-             patch("src.main.analyze_jd") as mock_analyze, \
-             patch("src.main.analyze_gaps"), \
-             patch("src.main.assess_compatibility"), \
-             patch("src.main.generate_tailored_resume") as mock_gen, \
-             patch("src.main.build_resume", return_value=["/tmp/test.md"]):
+        with patch("src.commands.generate.validate_api_key"), \
+             patch("src.commands.generate.load_profile", return_value=mock_profile), \
+             patch("src.commands.generate.save_profile"), \
+             patch("src.commands.generate.load_session", return_value=mock_session), \
+             patch("src.commands.generate.save_session"), \
+             patch("src.commands.generate.append_history"), \
+             patch("src.commands.generate.save_preferences"), \
+             patch("src.commands.generate.prepare_ollama"), \
+             patch("src.commands.generate.analyze_jd") as mock_analyze, \
+             patch("src.commands.generate.analyze_gaps"), \
+             patch("src.commands.generate.assess_compatibility"), \
+             patch("src.commands.generate.generate_tailored_resume") as mock_gen, \
+             patch("src.commands.generate.build_resume", return_value=["/tmp/test.md"]):
 
             # Mock JD analysis
             from src.models import JDAnalysis
@@ -299,17 +300,17 @@ class TestOllamaFallbackChain:
             "saved_at": "2026-03-01T00:00:00Z",
         }
 
-        with patch("src.main.validate_api_key"), \
-             patch("src.main.load_profile", return_value=mock_profile), \
-             patch("src.main.save_profile"), \
-             patch("src.main.load_session", return_value=mock_session), \
-             patch("src.main.save_session"), \
-             patch("src.main.append_history"), \
-             patch("src.main.save_preferences"), \
-             patch("src.main.analyze_jd") as mock_analyze, \
-             patch("src.main.analyze_gaps"), \
-             patch("src.main.assess_compatibility"), \
-             patch("src.main.generate_tailored_resume") as mock_gen:
+        with patch("src.commands.generate.validate_api_key"), \
+             patch("src.commands.generate.load_profile", return_value=mock_profile), \
+             patch("src.commands.generate.save_profile"), \
+             patch("src.commands.generate.load_session", return_value=mock_session), \
+             patch("src.commands.generate.save_session"), \
+             patch("src.commands.generate.append_history"), \
+             patch("src.commands.generate.save_preferences"), \
+             patch("src.commands.generate.analyze_jd") as mock_analyze, \
+             patch("src.commands.generate.analyze_gaps"), \
+             patch("src.commands.generate.assess_compatibility"), \
+             patch("src.commands.generate.generate_tailored_resume") as mock_gen:
 
             from src.models import JDAnalysis
             mock_analyze.return_value = JDAnalysis(
@@ -335,7 +336,7 @@ class TestOllamaFallbackChain:
             assert "switch to Claude" not in result.output
 
     @patch("click.prompt", return_value="1")
-    @patch("src.main.list_ollama_models", return_value=[
+    @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
@@ -345,7 +346,7 @@ class TestOllamaFallbackChain:
         assert result == "claude"
 
     @patch("click.prompt", return_value="2")
-    @patch("src.main.list_ollama_models", return_value=[
+    @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
@@ -355,7 +356,7 @@ class TestOllamaFallbackChain:
         assert result == "ollama:qwen3.5:latest"
 
     @patch("click.prompt", return_value="1")
-    @patch("src.main.list_ollama_models", return_value=[
+    @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
@@ -368,7 +369,7 @@ class TestOllamaFallbackChain:
         assert call_kwargs[1]["default"] == "2"
 
     @patch("click.prompt", return_value="invalid")
-    @patch("src.main.list_ollama_models", return_value=[
+    @patch("src.commands.common.list_ollama_models", return_value=[
         {"name": "qwen3.5:latest", "size_gb": 3.7},
     ])
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"})
