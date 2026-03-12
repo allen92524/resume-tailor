@@ -143,12 +143,37 @@ python src/main.py generate --format pdf
 
 > PDF 需要 LibreOffice。安装方法：`sudo apt install libreoffice-writer`（Linux）或 `brew install --cask libreoffice`（macOS）。或者直接用 `--format docx`。
 
+### 管理你的档案
+
+```bash
+# 查看已保存的信息
+python src/main.py profile view
+
+# 编辑已保存的简历
+python src/main.py profile edit
+
+# 完全重新开始
+python src/main.py profile reset
+```
+
 ### 为别人管理简历
 
 ```bash
 python src/main.py --profile wife generate
 python src/main.py --profile wife profile view
 ```
+
+### 选择特定的 Claude 模型
+
+```bash
+# 使用最强大的模型
+python src/main.py generate --model claude:opus
+
+# 使用最快最便宜的模型
+python src/main.py generate --model claude:haiku
+```
+
+交互式运行时（不带 `--model` 参数），选择 Claude 后会让你在 Haiku、Sonnet 和 Opus 之间选择。
 
 ### 用不同的回答重新生成
 

@@ -102,6 +102,26 @@ python src/main.py generate --reference path/to/their_resume.docx
 
 AI 会参考它来理解公司看重什么——语调、关键词、结构。
 
+### 我想选择特定的 Claude 模型
+
+交互式选择 Claude 时，会看到一个子菜单选择变体：
+
+| 模型 | 适用场景 | 费用 |
+|------|---------|------|
+| Haiku | 快速草稿、测试 | 最便宜 |
+| Sonnet | 日常使用（默认） | 适中 |
+| Opus | 最佳质量、复杂岗位 | 最贵 |
+
+或者通过 `--model` 直接指定：
+
+```bash
+python src/main.py generate --model claude:opus
+python src/main.py generate --model claude:haiku
+python src/main.py review --model claude:sonnet
+```
+
+你的选择会保存到档案中，下次自动作为默认值。
+
 ### 我已经准备好所有答案，想快速生成
 
 ```bash
@@ -133,10 +153,22 @@ python src/main.py --profile wife profile view
 # 更新联系方式
 python src/main.py --profile wife profile update
 
+# 在编辑器中打开 profile.json
+python src/main.py --profile wife profile edit
+
+# 导出档案为 Markdown
+python src/main.py --profile wife profile export
+
+# 将简历恢复到原始版本（撤销所有改进）
+python src/main.py --profile wife profile reset-baseline
+
 # 备份档案
 python src/main.py --profile wife profile backup
 
-# 重置，重新开始
+# 从备份恢复
+python src/main.py --profile wife profile restore
+
+# 重置，重新开始（删除所有数据）
 python src/main.py --profile wife profile reset
 ```
 
@@ -521,7 +553,7 @@ make release-push
 | `--skip-assessment` | `generate` | 跳过兼容性评分 | 关闭 |
 | `--reference <file>` | `generate` | 参考简历的路径 | 无 |
 | `--resume-session` | `generate` | 恢复上次会话的输入 | 关闭 |
-| `--model <name>` | `generate`、`review` | AI 模型：`claude` 或 `ollama:<name>` | `claude` |
+| `--model <name>` | `generate`、`review` | AI 模型：`claude`、`claude:haiku`、`claude:sonnet`、`claude:opus` 或 `ollama:<name>` | `claude`（Sonnet） |
 | `--dry-run` | `generate` | 使用模拟数据，不调用 AI | 关闭 |
 
 ---
