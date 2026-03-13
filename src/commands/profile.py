@@ -193,17 +193,145 @@ def profile_reset_baseline(ctx):
 @profile.command("edit")
 @click.pass_context
 def profile_edit(ctx):
-    """Open profile.json in the default editor."""
+    """Edit your saved resume in an interactive text editor."""
     pname = ctx.obj["profile_name"]
     pname, prof = select_profile_interactive(pname)
     ctx.obj["profile_name"] = pname
     if not prof:
         click.echo("No profile found. Run `generate` first to create one.")
         return
-    path = get_profile_path(pname)
 
-    click.echo(f"Opening {path}...")
-    open_in_editor(path)
+    if not prof.base_resume:
+        click.echo("No resume saved in this profile yet.")
+        return
+
+    click.echo("\nWhat would you like to edit?\n")
+    click.echo("  1. Resume")
+    click.echo("  2. Contact info (name, email, phone, etc.)")
+    click.echo("  3. Raw profile JSON (opens in text editor)")
+    click.echo()
+
+    choice = click.prompt("Choose", type=click.IntRange(1, 3), default=1)
+
+    if choice == 1:
+        # Full-screen prompt_toolkit editor — best UX for editing long free-form text.
+        _edit_resume_interactive(prof, pname)
+    elif choice == 2:
+        # Simple field-by-field prompts — 6 short fields don't need a full-screen editor.
+        _edit_contact_interactive(prof, pname)
+    else:
+        # Raw JSON in nano/vi — power-user option; nano/vi provides syntax awareness
+        # and is the right tool for structured data editing.
+        path = get_profile_path(pname)
+        click.echo(f"Opening {path}...")
+        open_in_editor(path)
+
+
+def _edit_resume_interactive(prof, pname: str) -> None:
+    """Edit the resume in a full-screen text editor powered by prompt_toolkit."""
+    from prompt_toolkit import Application
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout.containers import HSplit, Window
+    from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+    from prompt_toolkit.layout.layout import Layout
+
+    line_count = len(prof.base_resume.splitlines())
+    click.echo(f"\nOpening resume editor ({line_count} lines)...")
+
+    bindings = KeyBindings()
+    saved = {"result": None}
+
+    @bindings.add("c-s")
+    def _save(event):
+        """Ctrl+S to save and exit."""
+        saved["result"] = event.app.current_buffer.text
+        event.app.exit()
+
+    @bindings.add("c-c")
+    def _cancel(event):
+        """Ctrl+C to cancel."""
+        event.app.exit()
+
+    buffer = Buffer(
+        document=Document(prof.base_resume, cursor_position=0),
+        multiline=True,
+    )
+
+    editor_window = Window(content=BufferControl(buffer=buffer), wrap_lines=True)
+    status_bar = Window(
+        content=FormattedTextControl(
+            lambda: [
+                ("bg:#005fff fg:white bold", " Ctrl+S "),
+                ("bg:#444444 fg:white", " Save  "),
+                ("bg:#cc4444 fg:white bold", " Ctrl+C "),
+                ("bg:#444444 fg:white", " Cancel  "),
+                ("bg:#333333 fg:#aaaaaa", f" Line {buffer.document.cursor_position_row + 1}/{len(buffer.document.lines)} "),
+            ]
+        ),
+        height=1,
+    )
+
+    layout = Layout(HSplit([editor_window, status_bar]))
+    app = Application(layout=layout, key_bindings=bindings, full_screen=True)
+
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = saved["result"]
+    if edited is None:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = edited.strip()
+    if not edited:
+        click.echo("Empty resume. No changes made.")
+        return
+
+    if edited == prof.base_resume:
+        click.echo("No changes detected.")
+        return
+
+    old_words = len(prof.base_resume.split())
+    new_words = len(edited.split())
+    click.echo(f"\nResume changed: {old_words} words -> {new_words} words")
+
+    if click.confirm("Save changes?", default=True):
+        prof.base_resume = edited
+        save_profile(prof, pname)
+        click.echo("Resume updated.")
+    else:
+        click.echo("Cancelled.")
+
+
+def _edit_contact_interactive(prof, pname: str) -> None:
+    """Edit contact info with simple prompts (same as profile update)."""
+    identity = prof.identity
+    fields = ["name", "email", "phone", "location", "linkedin", "github"]
+    changed = False
+
+    click.echo("\nUpdate your profile. Press Enter to keep the current value.\n")
+    for field in fields:
+        current = getattr(identity, field) or ""
+        display = current if current else "(not set)"
+        new_value = click.prompt(
+            f"  {field.capitalize()} [{display}]",
+            default="",
+            show_default=False,
+        )
+        if new_value.strip():
+            setattr(identity, field, new_value.strip())
+            changed = True
+
+    if changed:
+        save_profile(prof, pname)
+        click.echo("\nProfile updated.")
+    else:
+        click.echo("\nNo changes made.")
 
 
 @profile.command("export")
