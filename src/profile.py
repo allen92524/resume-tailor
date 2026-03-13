@@ -26,7 +26,7 @@ from .config import (
     get_profile_path,
 )
 from .llm_client import call_llm
-from .models import Profile, Identity, ResumeReview
+from .models import Profile, Identity, ResumeReview, EnrichmentAnalysis
 from .prompts import CONTACT_EXTRACTION_SYSTEM, CONTACT_EXTRACTION_USER
 
 logger = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ def _ask_weakness_questions(
 
 
 def _ask_enrichment_questions(
-    enrichment: "EnrichmentAnalysis",
+    enrichment: EnrichmentAnalysis,
     model: str = DEFAULT_MODEL,
 ) -> dict[str, str]:
     """Walk through enrichment questions with conversational Q&A.
