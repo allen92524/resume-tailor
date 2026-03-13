@@ -134,13 +134,21 @@ Done! Your tailored resume has been saved to:
 ### Apply to a new job
 
 ```bash
+# Local
 python src/main.py generate
+
+# Docker
+docker compose run --rm resume-tailor generate
 ```
 
 ### Get your resume reviewed and improved
 
 ```bash
+# Local
 python src/main.py review
+
+# Docker
+docker compose run --rm resume-tailor review
 ```
 
 ### Output as PDF
@@ -158,21 +166,27 @@ python src/main.py generate --format pdf
 ### Manage your profile
 
 ```bash
-# See what's saved
+# Local
 python src/main.py profile view
-
-# Edit your saved resume
 python src/main.py profile edit
-
-# Start completely fresh
 python src/main.py profile reset
+
+# Docker
+docker compose run --rm resume-tailor profile view
+docker compose run --rm resume-tailor profile edit
+docker compose run --rm resume-tailor profile reset
 ```
 
 ### Manage a resume for someone else
 
 ```bash
+# Local
 python src/main.py --profile wife generate
 python src/main.py --profile wife profile view
+
+# Docker
+docker compose run --rm resume-tailor --profile wife generate
+docker compose run --rm resume-tailor --profile wife profile view
 ```
 
 ### Choose a specific Claude model
