@@ -35,6 +35,7 @@ from src.profile import (
     load_profile,
     save_profile,
     first_run_setup,
+    select_profile_interactive,
     lookup_experience,
     save_experience,
     append_history,
@@ -149,7 +150,8 @@ def generate(
                 sys.exit(1)
 
     # Load or create profile (now uses the selected model for any LLM calls)
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname  # update in case user picked a different profile
     if not prof:
         prof = first_run_setup(pname, model=model)
 

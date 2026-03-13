@@ -104,7 +104,7 @@ class TestGenerateCommand:
             }
 
             with patch("src.commands.generate.validate_api_key"), patch(
-                "src.commands.generate.load_profile", return_value=mock_profile
+                "src.commands.generate.select_profile_interactive", return_value=("default", mock_profile)
             ), patch("src.commands.generate.save_profile"), patch(
                 "src.commands.generate.load_session", return_value=mock_session
             ), patch(
@@ -141,7 +141,7 @@ class TestGenerateCommand:
 class TestProfileCommands:
     def test_profile_view_no_profile(self):
         runner = CliRunner()
-        with patch("src.commands.profile.load_profile", return_value=None):
+        with patch("src.commands.profile.select_profile_interactive", return_value=("default", None)):
             result = runner.invoke(cli, ["profile", "view"])
         assert result.exit_code == 0
         assert "No profile found" in result.output
@@ -155,20 +155,20 @@ class TestProfileCommands:
             history=[],
             preferences={},
         )
-        with patch("src.commands.profile.load_profile", return_value=mock_profile):
+        with patch("src.commands.profile.select_profile_interactive", return_value=("default", mock_profile)):
             result = runner.invoke(cli, ["profile", "view"])
         assert result.exit_code == 0
         assert "Sarah Chen" in result.output
 
     def test_profile_reset_no_profile(self):
         runner = CliRunner()
-        with patch("src.commands.profile.load_profile", return_value=None):
+        with patch("src.commands.profile.select_profile_interactive", return_value=("default", None)):
             result = runner.invoke(cli, ["profile", "reset"])
         assert "No profile found" in result.output
 
     def test_profile_export_no_profile(self):
         runner = CliRunner()
-        with patch("src.commands.profile.load_profile", return_value=None):
+        with patch("src.commands.profile.select_profile_interactive", return_value=("default", None)):
             result = runner.invoke(cli, ["profile", "export"])
         assert "No profile found" in result.output
 
@@ -236,7 +236,7 @@ class TestOllamaFallbackChain:
         mock_generation = _load_json_fixture("mock_resume_generation.json")
 
         with patch("src.commands.generate.validate_api_key"), \
-             patch("src.commands.generate.load_profile", return_value=mock_profile), \
+             patch("src.commands.generate.select_profile_interactive", return_value=("default", mock_profile)), \
              patch("src.commands.generate.save_profile"), \
              patch("src.commands.generate.load_session", return_value=mock_session), \
              patch("src.commands.generate.save_session"), \
@@ -301,7 +301,7 @@ class TestOllamaFallbackChain:
         }
 
         with patch("src.commands.generate.validate_api_key"), \
-             patch("src.commands.generate.load_profile", return_value=mock_profile), \
+             patch("src.commands.generate.select_profile_interactive", return_value=("default", mock_profile)), \
              patch("src.commands.generate.save_profile"), \
              patch("src.commands.generate.load_session", return_value=mock_session), \
              patch("src.commands.generate.save_session"), \

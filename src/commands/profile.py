@@ -6,7 +6,6 @@ import click
 
 from src.config import DEFAULT_PROFILE, get_profile_path
 from src.profile import (
-    load_profile,
     save_profile,
     delete_profile,
     open_in_editor,
@@ -14,6 +13,7 @@ from src.profile import (
     backup_profile,
     list_backups,
     restore_profile,
+    select_profile_interactive,
 )
 
 
@@ -28,9 +28,10 @@ def profile():
 def profile_view(ctx):
     """Show full profile summary."""
     pname = ctx.obj["profile_name"]
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
     if not prof:
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        click.echo("No profile found. Run `generate` first to create one.")
         return
 
     identity = prof.identity
@@ -98,9 +99,10 @@ def profile_view(ctx):
 def profile_update(ctx):
     """Interactively update identity fields (name, email, phone, etc.)."""
     pname = ctx.obj["profile_name"]
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
     if not prof:
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        click.echo("No profile found. Run `generate` first to create one.")
         return
 
     identity = prof.identity
@@ -132,7 +134,8 @@ def profile_update(ctx):
 def profile_reset(ctx):
     """Delete profile and start over."""
     pname = ctx.obj["profile_name"]
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
     if not prof:
         click.echo("No profile found. Nothing to reset.")
         return
@@ -157,9 +160,10 @@ def profile_reset(ctx):
 def profile_reset_baseline(ctx):
     """Revert base_resume back to the original unmodified resume."""
     pname = ctx.obj["profile_name"]
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
     if not prof:
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        click.echo("No profile found. Run `generate` first to create one.")
         return
 
     if not prof.original_resume:
@@ -191,10 +195,12 @@ def profile_reset_baseline(ctx):
 def profile_edit(ctx):
     """Open profile.json in the default editor."""
     pname = ctx.obj["profile_name"]
-    path = get_profile_path(pname)
-    if not os.path.isfile(path):
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
+    if not prof:
+        click.echo("No profile found. Run `generate` first to create one.")
         return
+    path = get_profile_path(pname)
 
     click.echo(f"Opening {path}...")
     open_in_editor(path)
@@ -205,9 +211,10 @@ def profile_edit(ctx):
 def profile_export(ctx):
     """Export profile as formatted markdown."""
     pname = ctx.obj["profile_name"]
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
     if not prof:
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        click.echo("No profile found. Run `generate` first to create one.")
         return
 
     md = export_as_markdown(prof)

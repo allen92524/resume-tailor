@@ -131,9 +131,11 @@ Done! Your tailored resume has been saved to:
 
 ## Common Tasks
 
-> **How it works:** The first time you run any command, the tool asks for your resume and saves it as your profile. After that, every command reuses your saved profile — you never need to paste your resume again.
+> **How it works:** The first time you run the tool, it asks for your resume and saves it as your profile. After that, it remembers you — just paste the job description and go.
 >
-> In the examples below, `Local` = running with Python directly, `Docker` = running in a container. Pick whichever you set up.
+> If you have multiple profiles (e.g., one for you, one for your spouse), the tool will show a menu to pick the right one.
+>
+> Each example below shows both the **Docker** command and the **local Python** command. Use whichever you set up.
 
 ### Apply to a new job
 
