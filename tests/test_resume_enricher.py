@@ -76,9 +76,7 @@ class TestImproveResumeWithEnrichment:
         with patch(
             "src.resume_enricher.call_llm", return_value=improved_text
         ) as mock_llm:
-            result = improve_resume_with_enrichment(
-                sample_resume, enrichment, answers
-            )
+            result = improve_resume_with_enrichment(sample_resume, enrichment, answers)
 
         assert isinstance(result, str)
         assert "Jane Doe" in result
@@ -111,8 +109,6 @@ class TestImproveResumeWithEnrichment:
         enrichment = EnrichmentAnalysis.from_dict(mock_enrichment)
 
         with patch("src.resume_enricher.call_llm", return_value="Same text"):
-            result = improve_resume_with_enrichment(
-                sample_resume, enrichment, {}
-            )
+            result = improve_resume_with_enrichment(sample_resume, enrichment, {})
 
         assert result == "Same text"
