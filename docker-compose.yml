@@ -13,4 +13,7 @@ services:
     volumes:
       - ~/.resume-tailor:/root/.resume-tailor
       - ./output:/output
-    command: ["generate", "--format", "pdf", "--output", "/output/"]
+    # Pass command via: docker compose run --rm resume-tailor <command> [args]
+    # e.g. docker compose run --rm resume-tailor generate
+    #      docker compose run --rm resume-tailor review
+    #      docker compose run --rm resume-tailor profile view
