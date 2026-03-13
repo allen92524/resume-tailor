@@ -193,17 +193,108 @@ def profile_reset_baseline(ctx):
 @profile.command("edit")
 @click.pass_context
 def profile_edit(ctx):
-    """Open profile.json in the default editor."""
+    """Edit your saved resume in an interactive text editor."""
     pname = ctx.obj["profile_name"]
     pname, prof = select_profile_interactive(pname)
     ctx.obj["profile_name"] = pname
     if not prof:
         click.echo("No profile found. Run `generate` first to create one.")
         return
-    path = get_profile_path(pname)
 
-    click.echo(f"Opening {path}...")
-    open_in_editor(path)
+    if not prof.base_resume:
+        click.echo("No resume saved in this profile yet.")
+        return
+
+    click.echo("\nWhat would you like to edit?\n")
+    click.echo("  1. Resume")
+    click.echo("  2. Contact info (name, email, phone, etc.)")
+    click.echo("  3. Raw profile JSON (opens in text editor)")
+    click.echo()
+
+    choice = click.prompt("Choose", type=click.IntRange(1, 3), default=1)
+
+    if choice == 1:
+        _edit_resume_interactive(prof, pname)
+    elif choice == 2:
+        _edit_contact_interactive(prof, pname)
+    else:
+        path = get_profile_path(pname)
+        click.echo(f"Opening {path}...")
+        open_in_editor(path)
+
+
+def _edit_resume_interactive(prof, pname: str) -> None:
+    """Edit the resume using prompt_toolkit's multiline editor."""
+    from prompt_toolkit import prompt as pt_prompt
+    from prompt_toolkit.key_binding import KeyBindings
+
+    bindings = KeyBindings()
+
+    @bindings.add("c-s")
+    def _save(event):
+        """Ctrl+S to save and exit."""
+        event.app.exit(result=event.app.current_buffer.text)
+
+    click.echo("\nEditing your resume. Make your changes below.")
+    click.echo("  Ctrl+S = save    |    Ctrl+C = cancel\n")
+    click.echo("-" * 50)
+
+    try:
+        edited = pt_prompt(
+            "",
+            default=prof.base_resume,
+            multiline=True,
+            key_bindings=bindings,
+        )
+    except KeyboardInterrupt:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = edited.strip()
+    if not edited:
+        click.echo("Empty resume. No changes made.")
+        return
+
+    if edited == prof.base_resume:
+        click.echo("No changes detected.")
+        return
+
+    old_words = len(prof.base_resume.split())
+    new_words = len(edited.split())
+    click.echo(f"\nResume changed: {old_words} words -> {new_words} words")
+
+    if click.confirm("Save changes?", default=True):
+        prof.base_resume = edited
+        save_profile(prof, pname)
+        click.echo("Resume updated.")
+    else:
+        click.echo("Cancelled.")
+
+
+def _edit_contact_interactive(prof, pname: str) -> None:
+    """Edit contact info with simple prompts (same as profile update)."""
+    identity = prof.identity
+    fields = ["name", "email", "phone", "location", "linkedin", "github"]
+    changed = False
+
+    click.echo("\nUpdate your profile. Press Enter to keep the current value.\n")
+    for field in fields:
+        current = getattr(identity, field) or ""
+        display = current if current else "(not set)"
+        new_value = click.prompt(
+            f"  {field.capitalize()} [{display}]",
+            default="",
+            show_default=False,
+        )
+        if new_value.strip():
+            setattr(identity, field, new_value.strip())
+            changed = True
+
+    if changed:
+        save_profile(prof, pname)
+        click.echo("\nProfile updated.")
+    else:
+        click.echo("\nNo changes made.")
 
 
 @profile.command("export")

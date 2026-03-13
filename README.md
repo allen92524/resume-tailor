@@ -232,11 +232,7 @@ docker compose run --rm resume-tailor --profile wife profile view
 python src/main.py profile view
 docker compose run --rm resume-tailor profile view
 
-# Edit profile in your default text editor
-python src/main.py profile edit
-docker compose run --rm resume-tailor profile edit
-
-# Update your name, email, phone, or LinkedIn
+# Update your name, email, phone, or LinkedIn (interactive prompts, just press Enter to skip)
 python src/main.py profile update
 docker compose run --rm resume-tailor profile update
 
@@ -259,6 +255,10 @@ docker compose run --rm resume-tailor profile reset-baseline
 # Delete everything and start over
 python src/main.py profile reset
 docker compose run --rm resume-tailor profile reset
+
+# Advanced: edit the raw profile JSON in a text editor (nano/vi)
+python src/main.py profile edit
+docker compose run --rm resume-tailor profile edit
 ```
 
 ### Quick generate (skip questions)
