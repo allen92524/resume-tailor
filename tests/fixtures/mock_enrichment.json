@@ -1,0 +1,46 @@
+{
+  "detected_profession": "AI/NLP Platform Lead",
+  "detected_industry": "Enterprise AI",
+  "strengths": [
+    "Strong progression from Computational Linguist to AI Platform Lead",
+    "Cross-functional experience across global regions",
+    "Hands-on with LLMs, RAG, prompt engineering"
+  ],
+  "questions": [
+    {
+      "role": "AI Platform Lead at Resolve",
+      "bullet_text": "",
+      "question": "What are your top 2-3 achievements since the merger?",
+      "example_answers": "e.g. unified teams, launched features, grew adoption",
+      "category": "achievements"
+    },
+    {
+      "role": "AI Platform Lead at Espressive",
+      "bullet_text": "Managed cross-functional team across US and India",
+      "question": "How many people were on your team?",
+      "example_answers": "e.g. 5, 10, 20+",
+      "category": "team_size"
+    },
+    {
+      "role": "AI Platform Lead at Espressive",
+      "bullet_text": "Built production-grade agent behaviors",
+      "question": "How many agent behaviors did you ship?",
+      "example_answers": "e.g. 10, 25, 50+",
+      "category": "metrics"
+    },
+    {
+      "role": "Computational Linguist at Interactions LLC",
+      "bullet_text": "Developed NLU models for virtual assistant",
+      "question": "What languages or domains did your NLU models cover?",
+      "example_answers": "e.g. English, Spanish, banking, telecom",
+      "category": "scope"
+    },
+    {
+      "role": "Computational Linguist at Interactions LLC",
+      "bullet_text": "Improved intent classification accuracy",
+      "question": "By how much did accuracy improve?",
+      "example_answers": "e.g. 5%, 10%, 15 percentage points",
+      "category": "metrics"
+    }
+  ]
+}

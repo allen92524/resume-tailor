@@ -28,9 +28,7 @@ from src.resume_generator import generate_tailored_resume
 from src.docx_builder import build_resume, open_file
 from src.session import save_session, load_session
 from src.resume_reviewer import (
-    review_resume,
     improve_resume,
-    display_review,
     resolve_resume_placeholders,
 )
 from src.profile import (
@@ -49,7 +47,6 @@ from src.commands.common import (
     summarize_resume as _summarize_resume,
     summarize_jd as _summarize_jd,
     capture_writing_preference as _capture_writing_preference,
-    fill_review_placeholders as _fill_review_placeholders,
     load_mock_fixture as _load_mock_fixture,
 )
 
@@ -184,39 +181,51 @@ def generate(
                 bold=True,
             )
         )
-        if click.confirm("Want to review your baseline resume?", default=False):
-            click.echo("Reviewing your baseline resume...")
+        if click.confirm("Want to refresh your baseline resume?", default=False):
+            click.echo("Analyzing your baseline resume...")
             try:
-                review_result = review_resume(prof.base_resume, model=model)
-                display_review(review_result)
-                review_result = _fill_review_placeholders(review_result)
+                from src.profile import _ask_enrichment_questions
+                from src.resume_enricher import (
+                    enrich_resume,
+                    display_enrichment,
+                    improve_resume_with_enrichment,
+                )
 
-                if click.confirm(
-                    "Incorporate these suggestions?", default=False
-                ):
-                    all_skipped: list[str] = []
-                    for b in review_result.improved_bullets:
-                        all_skipped.extend(b.skipped_placeholders)
+                enrichment = enrich_resume(prof.base_resume, model=model)
+                display_enrichment(enrichment)
 
-                    click.echo("Improving your resume...")
-                    improved = improve_resume(
+                answers = _ask_enrichment_questions(enrichment, model=model)
+
+                if answers:
+                    click.echo("Improving your resume with your answers...")
+                    improved = improve_resume_with_enrichment(
                         prof.base_resume,
-                        review_result,
-                        skipped_placeholders=all_skipped or None,
+                        enrichment,
+                        answers,
                         model=model,
                     )
-                    improved = resolve_resume_placeholders(improved)
-                    prof.base_resume = improved
-                    prof.applications_since_review = 0
-                    save_profile(prof, pname)
-                    click.echo("Base resume updated.")
+
+                    click.echo("\nImproved resume preview:")
+                    click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+                    if click.confirm("Save this improved version?", default=True):
+                        prof.base_resume = improved
+                        prof.applications_since_review = 0
+                        save_profile(prof, pname)
+                        click.echo("Base resume updated.")
+
+                        for question, answer in answers.items():
+                            save_experience(prof, question, answer, pname)
+                    else:
+                        prof.applications_since_review = 0
+                        save_profile(prof, pname)
+                        click.echo("Keeping existing resume.")
                 else:
-                    # Reset counter even if they decline
+                    # Reset counter even if no answers
                     prof.applications_since_review = 0
                     save_profile(prof, pname)
             except Exception as e:
-                logger.warning("Baseline review failed: %s", e)
-                click.echo(f"Warning: Review failed ({e}). Continuing.")
+                logger.warning("Baseline enrichment failed: %s", e)
+                click.echo(f"Warning: Enrichment failed ({e}). Continuing.")
 
     # Experience bank review — prompt after every 10 applications
     if (
@@ -308,7 +317,7 @@ def generate(
             resume_session = False
 
     if not resume_session:
-        # Step 1: Resume Input
+        # Step 3: Resume Input
         if has_profile_resume:
             resume_text = prof.base_resume
             click.echo(f"\nUsing profile resume for {profile_name}")
@@ -317,7 +326,7 @@ def generate(
                 dim=True,
             ))
         else:
-            click.echo("\n--- Step 1: Your Resume ---")
+            click.echo("\n--- Step 3: Your Resume ---")
             try:
                 resume_text = collect_resume_text()
             except (FileNotFoundError, ValueError) as e:
@@ -407,8 +416,8 @@ def generate(
                 # Save new info to experience bank
                 save_experience(prof, "recent_updates", new_input, pname)
 
-        # Step 2: Reference Resume (Optional)
-        click.echo("\n--- Step 2: Reference Resume (Optional) ---")
+        # Step 4: Reference Resume (Optional)
+        click.echo("\n--- Step 4: Reference Resume (Optional) ---")
         if reference_path:
             from src.resume_parser import read_resume_from_file
 
@@ -440,65 +449,8 @@ def generate(
                         f"  Warning: Could not load reference resume ({e}). Skipping."
                     )
 
-        # Step 3: Resume Review with Q&A (skip if profile already has a reviewed resume)
-        if not dry_run and not has_profile_resume:
-            click.echo("\n--- Step 3: Resume Review ---")
-            click.echo("Reviewing your resume...")
-            try:
-                from src.profile import _ask_weakness_questions
-
-                review_result = review_resume(resume_text, model=model)
-                display_review(review_result)
-
-                # Walk through each weakness with targeted questions
-                answers, all_skipped = _ask_weakness_questions(review_result, model=model)
-
-                if answers:
-                    answer_context = "\n".join(
-                        f"- {issue}: {answer}" for issue, answer in answers.items()
-                    )
-                    review_result.weaknesses.append(
-                        ReviewWeakness(
-                            section="User Provided",
-                            issue="Additional context from user",
-                            suggestion=f"Incorporate these details:\n{answer_context}",
-                        )
-                    )
-
-                    click.echo("Improving your resume with your answers...")
-                    try:
-                        improved = improve_resume(
-                            resume_text,
-                            review_result,
-                            skipped_placeholders=all_skipped or None,
-                            model=model,
-                        )
-                    except Exception as e:
-                        logger.error("Resume improvement failed: %s", e)
-                        click.echo(f"Error improving resume: {e}")
-                        improved = None
-
-                    if improved:
-                        improved = resolve_resume_placeholders(improved)
-                        click.echo("\nImproved resume preview:")
-                        click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
-                        if click.confirm("Save this improved version?", default=True):
-                            resume_text = improved
-                            prof.base_resume = improved
-                            save_profile(prof, pname)
-                            click.echo("Base resume updated and saved.")
-                        else:
-                            click.echo("Keeping original resume.")
-
-                    # Save answers to experience bank
-                    for issue, answer in answers.items():
-                        save_experience(prof, issue, answer, pname)
-            except Exception as e:
-                logger.warning("Resume review failed: %s", e)
-                click.echo(f"Warning: Resume review failed ({e}). Continuing.")
-
-        # Step 4: JD Input
-        click.echo("\n--- Step 4: Target Job Description ---")
+        # Step 5: JD Input
+        click.echo("\n--- Step 5: Target Job Description ---")
         jd_text = collect_jd_text()
 
         if not jd_text:
@@ -520,8 +472,8 @@ def generate(
         save_session(resume_text, jd_text, profile_name=pname)
         click.echo("\nSession saved. Re-run with --resume-session to skip input.")
 
-    # Step 5: JD Analysis
-    click.echo("\n--- Step 5: JD Analysis ---")
+    # Step 6: JD Analysis
+    click.echo("\n--- Step 6: JD Analysis ---")
     if dry_run:
         click.echo("[DRY RUN] Loading mock JD analysis...")
         jd_analysis = JDAnalysis.from_dict(_load_mock_fixture("mock_jd_analysis.json"))
@@ -576,7 +528,7 @@ def generate(
             job_title = saved_answers.get("job_title", "")
         else:
             # Run gap analysis and ask questions fresh
-            click.echo("\n--- Step 6: Gap Analysis & Follow-Up Questions ---")
+            click.echo("\n--- Step 7: Gap Analysis & Follow-Up Questions ---")
             if dry_run:
                 click.echo("[DRY RUN] Loading mock gap analysis...")
                 gap_result = GapAnalysis.from_dict(
@@ -723,7 +675,7 @@ def generate(
     # Compatibility assessment step
     match_score: int | None = None
     if not skip_assessment:
-        click.echo("\n--- Step 7: Compatibility Assessment ---")
+        click.echo("\n--- Step 8: Compatibility Assessment ---")
         if dry_run:
             click.echo("[DRY RUN] Loading mock compatibility assessment...")
             assessment = CompatibilityAssessment.from_dict(
@@ -765,8 +717,8 @@ def generate(
                     click.echo("Exiting.")
                     sys.exit(0)
 
-    # Step 8: Generate Tailored Resume
-    click.echo("\n--- Step 8: Generating Tailored Resume ---")
+    # Step 9: Generate Tailored Resume
+    click.echo("\n--- Step 9: Generating Tailored Resume ---")
     if dry_run:
         click.echo("[DRY RUN] Loading mock resume generation...")
         resume_data = ResumeContent.from_dict(
@@ -815,7 +767,7 @@ def generate(
 
     click.echo("Resume content generated.")
 
-    # Step 8b: Section-by-section review
+    # Step 9b: Section-by-section review
     if not dry_run:
         click.echo("\n--- Review Generated Resume ---")
 
@@ -854,10 +806,10 @@ def generate(
 
         click.echo("")
 
-    # Step 9: Output
+    # Step 10: Output
     formats = [output_format.lower()]
     format_label = "all formats" if output_format == "all" else output_format.upper()
-    click.echo(f"\n--- Step 9: Building {format_label} ---")
+    click.echo(f"\n--- Step 10: Building {format_label} ---")
 
     default_output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "output")
     try:

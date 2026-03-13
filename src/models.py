@@ -163,6 +163,53 @@ class ResumeContent:
 
 
 @dataclass
+class EnrichmentQuestion:
+    role: str = ""
+    bullet_text: str = ""
+    question: str = ""
+    example_answers: str = ""
+    category: str = ""
+
+
+@dataclass
+class EnrichmentAnalysis:
+    detected_profession: str = ""
+    detected_industry: str = ""
+    strengths: list[str] = field(default_factory=list)
+    questions: list[EnrichmentQuestion] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> EnrichmentAnalysis:
+        questions = [
+            EnrichmentQuestion(
+                **{
+                    k: v
+                    for k, v in q.items()
+                    if k in EnrichmentQuestion.__dataclass_fields__
+                }
+            )
+            for q in data.get("questions", [])
+        ]
+        return cls(
+            detected_profession=data.get("detected_profession", ""),
+            detected_industry=data.get("detected_industry", ""),
+            strengths=data.get("strengths", []),
+            questions=questions,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "detected_profession": self.detected_profession,
+            "detected_industry": self.detected_industry,
+            "strengths": self.strengths,
+            "questions": [
+                {k: getattr(q, k) for k in EnrichmentQuestion.__dataclass_fields__}
+                for q in self.questions
+            ],
+        }
+
+
+@dataclass
 class GapEntry:
     skill: str = ""
     question: str = ""

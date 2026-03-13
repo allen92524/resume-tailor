@@ -60,3 +60,8 @@ def mock_compatibility() -> dict:
 @pytest.fixture
 def mock_review() -> dict:
     return _load_json_fixture("mock_review.json")
+
+
+@pytest.fixture
+def mock_enrichment() -> dict:
+    return _load_json_fixture("mock_enrichment.json")

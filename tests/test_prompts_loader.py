@@ -25,6 +25,10 @@ EXPECTED_VARIABLES = [
     "RESUME_IMPROVE_USER",
     "CONTACT_EXTRACTION_SYSTEM",
     "CONTACT_EXTRACTION_USER",
+    "RESUME_ENRICH_SYSTEM",
+    "RESUME_ENRICH_USER",
+    "RESUME_IMPROVE_ENRICHED_SYSTEM",
+    "RESUME_IMPROVE_ENRICHED_USER",
 ]
 
 EXPECTED_FILES = [
@@ -35,6 +39,8 @@ EXPECTED_FILES = [
     "resume_review.md",
     "resume_improve.md",
     "contact_extraction.md",
+    "resume_enrich.md",
+    "resume_improve_enriched.md",
 ]
 
 SUPPORT_FILES = [
@@ -111,6 +117,13 @@ class TestSharedRules:
 
     def test_dates_injected_in_resume_generation(self):
         assert "NEVER modify" in prompts.RESUME_GENERATION_USER
+
+    def test_truthfulness_injected_in_enrichment(self):
+        assert "Never fabricate" in prompts.RESUME_ENRICH_USER
+
+    def test_metrics_no_placeholders_injected_in_enriched_improve(self):
+        assert "NEVER invent or fabricate metrics" in prompts.RESUME_IMPROVE_ENRICHED_USER
+        assert "strictly forbidden" in prompts.RESUME_IMPROVE_ENRICHED_USER
 
 
 class TestCompanyContext:
