@@ -29,7 +29,7 @@ _RETRYABLE = (
     stop=stop_after_attempt(RETRY_MAX_ATTEMPTS),
     wait=wait_exponential(multiplier=1, min=RETRY_MIN_WAIT, max=RETRY_MAX_WAIT),
     retry=retry_if_exception_type(_RETRYABLE),
-    before_sleep=lambda rs: logger.warning(
+    before_sleep=lambda rs: logger.info(
         "API call failed (%s), retrying in %ds (attempt %d/%d)...",
         rs.outcome.exception().__class__.__name__,
         rs.next_action.sleep,

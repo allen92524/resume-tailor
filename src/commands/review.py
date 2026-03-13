@@ -13,7 +13,7 @@ from src.resume_reviewer import (
     display_review,
     resolve_resume_placeholders,
 )
-from src.profile import load_profile, save_profile, get_preferences, save_experience
+from src.profile import save_profile, get_preferences, save_experience, select_profile_interactive
 from src.commands.common import validate_api_key, select_model_interactive
 
 logger = logging.getLogger(__name__)
@@ -30,9 +30,10 @@ def review(ctx, model):
     """Review your base resume for quality and get improvement suggestions."""
     pname = ctx.obj["profile_name"]
 
-    prof = load_profile(pname)
+    pname, prof = select_profile_interactive(pname)
+    ctx.obj["profile_name"] = pname
     if not prof:
-        click.echo("No profile found. Run `python src/main.py generate` to create one.")
+        click.echo("No profile found. Run `generate` first to create one.")
         sys.exit(1)
 
     # Model selection: interactive menu if --model not provided

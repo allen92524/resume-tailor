@@ -88,6 +88,63 @@ def load_profile(profile_name: str = DEFAULT_PROFILE) -> Profile | None:
     return profile
 
 
+def list_profiles() -> list[str]:
+    """Return names of all profiles that have a profile.json file."""
+    base_dir = os.path.expanduser("~/.resume-tailor")
+    if not os.path.isdir(base_dir):
+        return []
+    profiles = []
+    for name in sorted(os.listdir(base_dir)):
+        candidate = os.path.join(base_dir, name, "profile.json")
+        if os.path.isfile(candidate):
+            profiles.append(name)
+    return profiles
+
+
+def select_profile_interactive(requested: str) -> tuple[str, Profile | None]:
+    """If the requested profile doesn't exist, offer to pick an existing one.
+
+    Returns (profile_name, profile_or_none).
+    If the user picks an existing profile, returns (name, loaded_profile).
+    If the user wants to create a new one, returns (requested, None).
+    """
+    prof = load_profile(requested)
+    if prof:
+        return requested, prof
+
+    existing = list_profiles()
+    if not existing:
+        return requested, None
+
+    # Show existing profiles and let user pick
+    click.echo()
+    click.echo(f'No profile found for "{requested}".')
+    click.echo()
+    click.echo("Existing profiles:")
+    for i, name in enumerate(existing, 1):
+        p = load_profile(name)
+        label = name
+        if p and p.identity and p.identity.name:
+            label = f"{name} ({p.identity.name})"
+        click.echo(f"  {i}. {label}")
+    click.echo(f"  {len(existing) + 1}. Create a new profile")
+    click.echo()
+
+    choice = click.prompt(
+        "Choose a profile",
+        type=click.IntRange(1, len(existing) + 1),
+        default=1,
+    )
+
+    if choice <= len(existing):
+        picked = existing[choice - 1]
+        click.echo(f'Using profile "{picked}".')
+        return picked, load_profile(picked)
+    else:
+        click.echo(f'Creating new profile "{requested}".')
+        return requested, None
+
+
 def save_profile(profile: Profile, profile_name: str = DEFAULT_PROFILE) -> None:
     """Save the profile to disk."""
     _ensure_profile_dir(profile_name)
