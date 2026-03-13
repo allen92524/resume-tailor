@@ -23,6 +23,8 @@ Claude Code should read this to understand the project history and design philos
 8. **Industry timeline awareness** — use terminology appropriate to each role's time period
 9. **Smart follow-up on "No"** — suggest adjacent skills before accepting No
 10. **Docker = Claude API only** — Ollama (local models) is only for local installs, never inside Docker. LLM models are too large for containers (huge images, slow pulls, heavy resources). `docker-compose.full.yml` was removed.
+11. **Enrichment-first onboarding** — new users get targeted questions about missing facts (team size, metrics, scope) BEFORE any resume improvement. The LLM detects profession/industry first, ensuring questions and examples are role-appropriate. No placeholders needed since real data is gathered upfront. Replaces the old review-first flow that generated placeholder-stuffed bullets and engineering-biased suggestions.
+12. **Profession-neutral prompts** — all prompts detect the candidate's profession before generating feedback. Metric types, keyword suggestions, and examples must match the candidate's actual field, not default to software engineering.
 
 ## Known Issues to Watch
 - Local Ollama models produce lower quality output than Claude API
@@ -33,7 +35,7 @@ Claude Code should read this to understand the project history and design philos
 
 ## Testing Requirements
 - Run `make lint` and `make test` before every commit
-- 476+ tests must pass
+- 513+ tests must pass
 - Test with real Docker containers, not just mocked unit tests
 - Test on different machines (WSL, Mac) to catch platform issues
 - Use E2E_CHECKLIST.md for manual testing before releases
