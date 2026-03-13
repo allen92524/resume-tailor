@@ -19,9 +19,7 @@ from .prompts import (
 logger = logging.getLogger(__name__)
 
 
-def enrich_resume(
-    resume_text: str, model: str = DEFAULT_MODEL
-) -> EnrichmentAnalysis:
+def enrich_resume(resume_text: str, model: str = DEFAULT_MODEL) -> EnrichmentAnalysis:
     """Analyze a resume to detect profession and identify information gaps.
 
     Returns an EnrichmentAnalysis with detected profession, strengths,
@@ -66,9 +64,7 @@ def display_enrichment(enrichment: EnrichmentAnalysis) -> None:
     profession = enrichment.detected_profession or "Unknown"
     industry = enrichment.detected_industry or ""
     label = f"{profession} ({industry})" if industry else profession
-    click.echo(
-        f"\n  Detected: {click.style(label, fg='cyan', bold=True)}"
-    )
+    click.echo(f"\n  Detected: {click.style(label, fg='cyan', bold=True)}")
 
     # Strengths
     if enrichment.strengths:

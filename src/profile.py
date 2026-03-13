@@ -54,7 +54,9 @@ def _migrate_legacy_profile() -> None:
         logger.info("Migrated legacy profile from %s to %s", legacy_path, new_path)
 
 
-def _migrate_profile_fields(profile: Profile, profile_name: str = DEFAULT_PROFILE) -> None:
+def _migrate_profile_fields(
+    profile: Profile, profile_name: str = DEFAULT_PROFILE
+) -> None:
     """Migrate profile to include new fields introduced in later versions.
 
     - Copies base_resume to original_resume if original_resume is empty.
@@ -166,7 +168,11 @@ def _ask_weakness_questions(
     answers_dict maps weakness descriptions to user answers (or confirmed
     improved bullets) for use in improvement.
     """
-    from .conversation import conversational_qa, generate_improved_bullet, confirm_bullet
+    from .conversation import (
+        conversational_qa,
+        generate_improved_bullet,
+        confirm_bullet,
+    )
 
     answers: dict[str, str] = {}
     all_skipped: list[str] = []
@@ -224,7 +230,9 @@ def _ask_weakness_questions(
                     else:
                         # User rejected — still save raw answer
                         answers[w.issue] = answer
-                        click.echo(click.style("    Using your raw answer.", fg="yellow"))
+                        click.echo(
+                            click.style("    Using your raw answer.", fg="yellow")
+                        )
                 except Exception:
                     logger.debug("Bullet improvement failed, using raw answer")
                     answers[w.issue] = answer
@@ -237,7 +245,9 @@ def _ask_weakness_questions(
         click.echo("")
 
     # Also handle improved bullet placeholders
-    from src.commands.common import fill_review_placeholders as _fill_review_placeholders  # noqa: E402
+    from src.commands.common import (
+        fill_review_placeholders as _fill_review_placeholders,
+    )  # noqa: E402
 
     review = _fill_review_placeholders(review)
     for b in review.improved_bullets:
@@ -258,7 +268,11 @@ def _ask_enrichment_questions(
     Returns dict mapping question text to user answers (or confirmed
     improved bullets).
     """
-    from .conversation import conversational_qa, generate_improved_bullet, confirm_bullet
+    from .conversation import (
+        conversational_qa,
+        generate_improved_bullet,
+        confirm_bullet,
+    )
 
     answers: dict[str, str] = {}
 
@@ -411,7 +425,6 @@ def first_run_setup(
         save_experience(profile, skill, answer, profile_name)
 
     return profile
-
 
 
 def save_experience(

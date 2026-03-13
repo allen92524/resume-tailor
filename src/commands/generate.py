@@ -11,14 +11,18 @@ from src.config import (
     MAX_GAP_QUESTIONS,
     DEFAULT_OUTPUT_FORMAT,
 )
-from src.llm_client import is_ollama_model, get_ollama_model_name, get_claude_display_name, prepare_ollama, resolve_claude_model
+from src.llm_client import (
+    is_ollama_model,
+    get_ollama_model_name,
+    get_claude_display_name,
+    prepare_ollama,
+    resolve_claude_model,
+)
 from src.models import (
     ResumeContent,
     JDAnalysis,
     GapAnalysis,
     CompatibilityAssessment,
-    ResumeReview,
-    ReviewWeakness,
 )
 from src.resume_parser import collect_resume_text, validate_resume_content
 from src.jd_analyzer import analyze_jd, collect_jd_text
@@ -27,10 +31,6 @@ from src.compatibility_assessor import assess_compatibility, display_assessment
 from src.resume_generator import generate_tailored_resume
 from src.docx_builder import build_resume, open_file
 from src.session import save_session, load_session
-from src.resume_reviewer import (
-    improve_resume,
-    resolve_resume_placeholders,
-)
 from src.profile import (
     load_profile,
     save_profile,
@@ -168,11 +168,7 @@ def generate(
         output_path = prefs.get("output_path")
 
     # Periodic baseline review prompt for returning users
-    if (
-        not dry_run
-        and prof.base_resume
-        and prof.applications_since_review >= 10
-    ):
+    if not dry_run and prof.base_resume and prof.applications_since_review >= 10:
         click.echo(
             click.style(
                 f"\nYou've generated {prof.applications_since_review} resumes since "
@@ -228,11 +224,7 @@ def generate(
                 click.echo(f"Warning: Enrichment failed ({e}). Continuing.")
 
     # Experience bank review — prompt after every 10 applications
-    if (
-        not dry_run
-        and prof.experience_bank
-        and prof.applications_since_review >= 10
-    ):
+    if not dry_run and prof.experience_bank and prof.applications_since_review >= 10:
         click.echo(
             click.style(
                 "\nTime for a quick experience bank review — some answers might be outdated.",
@@ -244,11 +236,15 @@ def generate(
             for skill, answer in list(prof.experience_bank.items()):
                 preview = answer[:80] + "..." if len(answer) > 80 else answer
                 click.echo(f"\n  {skill}: {preview}")
-                action = click.prompt(
-                    "    [Enter] Keep  |  [u] Update  |  [d] Delete",
-                    default="",
-                    show_default=False,
-                ).strip().lower()
+                action = (
+                    click.prompt(
+                        "    [Enter] Keep  |  [u] Update  |  [d] Delete",
+                        default="",
+                        show_default=False,
+                    )
+                    .strip()
+                    .lower()
+                )
                 if action == "d":
                     keys_to_delete.append(skill)
                     click.echo("    Deleted.")
@@ -321,10 +317,12 @@ def generate(
         if has_profile_resume:
             resume_text = prof.base_resume
             click.echo(f"\nUsing profile resume for {profile_name}")
-            click.echo(click.style(
-                "  (Tip: run 'python src/main.py profile' to view or edit your profile)",
-                dim=True,
-            ))
+            click.echo(
+                click.style(
+                    "  (Tip: run 'python src/main.py profile' to view or edit your profile)",
+                    dim=True,
+                )
+            )
         else:
             click.echo("\n--- Step 3: Your Resume ---")
             try:
@@ -380,25 +378,25 @@ def generate(
                 show_default=False,
             ).strip()
             if new_input:
-                # Update base_resume with new info via LLM
+                # Update base_resume with new info via enrichment improve (no placeholders)
                 click.echo("Updating your baseline resume with new information...")
                 try:
-                    # Build a minimal review that tells the LLM to incorporate new info
-                    update_review = ResumeReview(
-                        overall_score=80,
-                        strengths=["Existing resume is solid"],
-                        weaknesses=[
-                            ReviewWeakness(
-                                section="General",
-                                issue="Missing recent experience",
-                                suggestion=f"Incorporate the following new information: {new_input}",
+                    from src.resume_enricher import improve_resume_with_enrichment
+                    from src.models import EnrichmentAnalysis, EnrichmentQuestion
+
+                    enrichment = EnrichmentAnalysis(
+                        questions=[
+                            EnrichmentQuestion(
+                                role="Recent updates",
+                                question="What's new since your last application?",
+                                category="achievements",
                             )
                         ],
                     )
-                    updated = improve_resume(
-                        prof.base_resume, update_review, model=model
+                    answers = {"What's new since your last application?": new_input}
+                    updated = improve_resume_with_enrichment(
+                        prof.base_resume, enrichment, answers, model=model
                     )
-                    updated = resolve_resume_placeholders(updated)
 
                     click.echo("\nUpdated resume preview (first 500 chars):")
                     click.echo(updated[:500] + ("..." if len(updated) > 500 else ""))
@@ -411,7 +409,9 @@ def generate(
                         click.echo("Keeping existing resume.")
                 except Exception as e:
                     logger.warning("Failed to update resume: %s", e)
-                    click.echo(f"Warning: Could not update resume ({e}). Continuing with existing.")
+                    click.echo(
+                        f"Warning: Could not update resume ({e}). Continuing with existing."
+                    )
 
                 # Save new info to experience bank
                 save_experience(prof, "recent_updates", new_input, pname)
@@ -478,10 +478,16 @@ def generate(
         click.echo("[DRY RUN] Loading mock JD analysis...")
         jd_analysis = JDAnalysis.from_dict(_load_mock_fixture("mock_jd_analysis.json"))
     else:
-        _model_label = get_ollama_model_name(model) if is_ollama_model(model) else get_claude_display_name(model)
+        _model_label = (
+            get_ollama_model_name(model)
+            if is_ollama_model(model)
+            else get_claude_display_name(model)
+        )
         click.echo(f"Analyzing job description using {_model_label}...")
         try:
-            jd_analysis = analyze_jd(jd_text, reference_text=reference_text, model=model)
+            jd_analysis = analyze_jd(
+                jd_text, reference_text=reference_text, model=model
+            )
         except Exception as e:
             logger.error("JD analysis failed: %s", e)
             click.echo(f"Error analyzing job description: {e}")
