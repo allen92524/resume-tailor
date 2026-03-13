@@ -17,8 +17,6 @@ from src.models import (
     JDAnalysis,
     GapAnalysis,
     CompatibilityAssessment,
-    ResumeReview,
-    ReviewWeakness,
 )
 from src.resume_parser import collect_resume_text, validate_resume_content
 from src.jd_analyzer import analyze_jd, collect_jd_text
@@ -27,10 +25,6 @@ from src.compatibility_assessor import assess_compatibility, display_assessment
 from src.resume_generator import generate_tailored_resume
 from src.docx_builder import build_resume, open_file
 from src.session import save_session, load_session
-from src.resume_reviewer import (
-    improve_resume,
-    resolve_resume_placeholders,
-)
 from src.profile import (
     load_profile,
     save_profile,
@@ -380,25 +374,25 @@ def generate(
                 show_default=False,
             ).strip()
             if new_input:
-                # Update base_resume with new info via LLM
+                # Update base_resume with new info via enrichment improve (no placeholders)
                 click.echo("Updating your baseline resume with new information...")
                 try:
-                    # Build a minimal review that tells the LLM to incorporate new info
-                    update_review = ResumeReview(
-                        overall_score=80,
-                        strengths=["Existing resume is solid"],
-                        weaknesses=[
-                            ReviewWeakness(
-                                section="General",
-                                issue="Missing recent experience",
-                                suggestion=f"Incorporate the following new information: {new_input}",
+                    from src.resume_enricher import improve_resume_with_enrichment
+                    from src.models import EnrichmentAnalysis, EnrichmentQuestion
+
+                    enrichment = EnrichmentAnalysis(
+                        questions=[
+                            EnrichmentQuestion(
+                                role="Recent updates",
+                                question="What's new since your last application?",
+                                category="achievements",
                             )
                         ],
                     )
-                    updated = improve_resume(
-                        prof.base_resume, update_review, model=model
+                    answers = {"What's new since your last application?": new_input}
+                    updated = improve_resume_with_enrichment(
+                        prof.base_resume, enrichment, answers, model=model
                     )
-                    updated = resolve_resume_placeholders(updated)
 
                     click.echo("\nUpdated resume preview (first 500 chars):")
                     click.echo(updated[:500] + ("..." if len(updated) > 500 else ""))
