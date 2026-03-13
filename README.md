@@ -131,7 +131,13 @@ Done! Your tailored resume has been saved to:
 
 ## Common Tasks
 
+> **How it works:** The first time you run any command, the tool asks for your resume and saves it as your profile. After that, every command reuses your saved profile — you never need to paste your resume again.
+>
+> In the examples below, `Local` = running with Python directly, `Docker` = running in a container. Pick whichever you set up.
+
 ### Apply to a new job
+
+The main command. Paste the job description, answer a few questions, get a tailored resume.
 
 ```bash
 # Local
@@ -143,6 +149,8 @@ docker compose run --rm resume-tailor generate
 
 ### Get your resume reviewed and improved
 
+Get AI feedback on your base resume with suggestions to make it stronger.
+
 ```bash
 # Local
 python src/main.py review
@@ -151,72 +159,140 @@ python src/main.py review
 docker compose run --rm resume-tailor review
 ```
 
-### Output as PDF
+### Choose output format
 
 ```bash
-# Docker (PDF works out of the box)
+# PDF (Docker includes PDF support; local needs LibreOffice)
+python src/main.py generate --format pdf
 docker compose run --rm resume-tailor generate --format pdf --output /output/
 
-# Local install (requires LibreOffice)
-python src/main.py generate --format pdf
+# Markdown
+python src/main.py generate --format md
+docker compose run --rm resume-tailor generate --format md --output /output/
+
+# All formats at once (DOCX + PDF + Markdown)
+python src/main.py generate --format all
+docker compose run --rm resume-tailor generate --format all --output /output/
 ```
 
-> Local install only: PDF requires LibreOffice. Install it: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Docker includes it automatically.
+> Local PDF requires LibreOffice: `sudo apt install libreoffice-writer` (Linux) or `brew install --cask libreoffice` (macOS). Docker includes it automatically.
 
-### Manage your profile
+### Choose AI model
+
+```bash
+# Best quality (Claude Opus)
+python src/main.py generate --model claude:opus
+docker compose run --rm resume-tailor generate --model claude:opus
+
+# Fastest and cheapest (Claude Haiku)
+python src/main.py generate --model claude:haiku
+docker compose run --rm resume-tailor generate --model claude:haiku
+
+# Free with local Ollama
+python src/main.py generate --model ollama:gemma3
+docker compose run --rm resume-tailor generate --model ollama:gemma3
+```
+
+> When you run without `--model`, you'll be asked to choose interactively.
+
+### Use a reference resume
+
+If you have a resume from someone in a similar role, you can use it as a reference to guide the output style.
 
 ```bash
 # Local
-python src/main.py profile view
-python src/main.py profile edit
-python src/main.py profile reset
+python src/main.py generate --reference ~/Downloads/colleague_resume.pdf
 
-# Docker
-docker compose run --rm resume-tailor profile view
-docker compose run --rm resume-tailor profile edit
-docker compose run --rm resume-tailor profile reset
+# Docker (place the file in the project folder first)
+docker compose run --rm resume-tailor generate --reference /app/colleague_resume.pdf
 ```
 
-### Manage a resume for someone else
+### Resume for someone else (multiple profiles)
+
+Each profile has its own saved resume, experience bank, and history.
 
 ```bash
 # Local
 python src/main.py --profile wife generate
+python src/main.py --profile wife review
 python src/main.py --profile wife profile view
 
 # Docker
 docker compose run --rm resume-tailor --profile wife generate
+docker compose run --rm resume-tailor --profile wife review
 docker compose run --rm resume-tailor --profile wife profile view
 ```
 
-### Choose a specific Claude model
+### Manage your profile
 
 ```bash
-# Use the most capable model
-python src/main.py generate --model claude:opus
+# See what's saved
+python src/main.py profile view
+docker compose run --rm resume-tailor profile view
 
-# Use the fastest/cheapest model
-python src/main.py generate --model claude:haiku
+# Edit profile in your default text editor
+python src/main.py profile edit
+docker compose run --rm resume-tailor profile edit
+
+# Update your name, email, phone, or LinkedIn
+python src/main.py profile update
+docker compose run --rm resume-tailor profile update
+
+# Export profile as formatted markdown
+python src/main.py profile export
+docker compose run --rm resume-tailor profile export
+
+# Back up your profile (creates a timestamped copy)
+python src/main.py profile backup
+docker compose run --rm resume-tailor profile backup
+
+# Restore from a backup
+python src/main.py profile restore
+docker compose run --rm resume-tailor profile restore
+
+# Undo all resume improvements, go back to what you originally pasted
+python src/main.py profile reset-baseline
+docker compose run --rm resume-tailor profile reset-baseline
+
+# Delete everything and start over
+python src/main.py profile reset
+docker compose run --rm resume-tailor profile reset
 ```
 
-When you run interactively (no `--model` flag), you'll be asked to choose between Haiku, Sonnet, and Opus after selecting Claude.
+### Quick generate (skip questions)
+
+Skip the Q&A step and go straight to generation. Useful when the job is a close match.
+
+```bash
+# Local
+python src/main.py generate --skip-questions --skip-assessment
+
+# Docker
+docker compose run --rm resume-tailor generate --skip-questions --skip-assessment
+```
 
 ### Retry with different answers
 
+Re-load the resume and job description from your last run so you can answer differently.
+
 ```bash
+# Local
 python src/main.py generate --resume-session
+
+# Docker
+docker compose run --rm resume-tailor generate --resume-session
 ```
 
-### Skip straight to generation (no questions)
+### Test without using AI credits
+
+Run the full flow with mock data — no API key needed.
 
 ```bash
-python src/main.py generate --skip-questions --skip-assessment
-```
-
-### Test the full flow without using any AI
-
-```bash
+# Local
 python src/main.py generate --dry-run
+
+# Docker
+docker compose run --rm resume-tailor generate --dry-run
 ```
 
 See [USAGE.md](USAGE.md) for the complete reference with all flags, workflows, and troubleshooting.
