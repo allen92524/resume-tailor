@@ -28,6 +28,7 @@ Respond with valid JSON matching this exact structure:
 }}
 
 Rules:
+- Questions must be written in plain, everyday language — no jargon or acronyms. If a technical term is necessary, explain it in parentheses (e.g. "How many service uptime targets (SLOs) have you defined?" not "How many SLOs have you defined and tracked?")
 - Questions must ask about FACTS the candidate would know — not quality judgments
 - Each question asks for ONE specific piece of information, not multiple things at once
 - Example answers must be realistic for the candidate's detected profession:
