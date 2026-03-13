@@ -36,8 +36,9 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 
 ### Step 2b: Periodic Maintenance (returning users)
 - If `applications_since_review >= 10`:
-  - Ask: "Want to review your baseline resume?"
-  - If yes → run review with Q&A, update `base_resume`, reset counter
+  - Ask: "Want to refresh your baseline resume?"
+  - If yes → run enrichment flow: detect profession, ask targeted questions, improve with real answers
+  - Save answers to experience bank, reset counter
   - Also offer experience bank review: keep, update, or delete each saved answer
 
 ### Step 3: Resume Input

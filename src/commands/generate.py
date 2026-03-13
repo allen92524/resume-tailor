@@ -28,9 +28,7 @@ from src.resume_generator import generate_tailored_resume
 from src.docx_builder import build_resume, open_file
 from src.session import save_session, load_session
 from src.resume_reviewer import (
-    review_resume,
     improve_resume,
-    display_review,
     resolve_resume_placeholders,
 )
 from src.profile import (
@@ -49,7 +47,6 @@ from src.commands.common import (
     summarize_resume as _summarize_resume,
     summarize_jd as _summarize_jd,
     capture_writing_preference as _capture_writing_preference,
-    fill_review_placeholders as _fill_review_placeholders,
     load_mock_fixture as _load_mock_fixture,
 )
 
@@ -184,39 +181,51 @@ def generate(
                 bold=True,
             )
         )
-        if click.confirm("Want to review your baseline resume?", default=False):
-            click.echo("Reviewing your baseline resume...")
+        if click.confirm("Want to refresh your baseline resume?", default=False):
+            click.echo("Analyzing your baseline resume...")
             try:
-                review_result = review_resume(prof.base_resume, model=model)
-                display_review(review_result)
-                review_result = _fill_review_placeholders(review_result)
+                from src.profile import _ask_enrichment_questions
+                from src.resume_enricher import (
+                    enrich_resume,
+                    display_enrichment,
+                    improve_resume_with_enrichment,
+                )
 
-                if click.confirm(
-                    "Incorporate these suggestions?", default=False
-                ):
-                    all_skipped: list[str] = []
-                    for b in review_result.improved_bullets:
-                        all_skipped.extend(b.skipped_placeholders)
+                enrichment = enrich_resume(prof.base_resume, model=model)
+                display_enrichment(enrichment)
 
-                    click.echo("Improving your resume...")
-                    improved = improve_resume(
+                answers = _ask_enrichment_questions(enrichment, model=model)
+
+                if answers:
+                    click.echo("Improving your resume with your answers...")
+                    improved = improve_resume_with_enrichment(
                         prof.base_resume,
-                        review_result,
-                        skipped_placeholders=all_skipped or None,
+                        enrichment,
+                        answers,
                         model=model,
                     )
-                    improved = resolve_resume_placeholders(improved)
-                    prof.base_resume = improved
-                    prof.applications_since_review = 0
-                    save_profile(prof, pname)
-                    click.echo("Base resume updated.")
+
+                    click.echo("\nImproved resume preview:")
+                    click.echo(improved[:500] + ("..." if len(improved) > 500 else ""))
+                    if click.confirm("Save this improved version?", default=True):
+                        prof.base_resume = improved
+                        prof.applications_since_review = 0
+                        save_profile(prof, pname)
+                        click.echo("Base resume updated.")
+
+                        for question, answer in answers.items():
+                            save_experience(prof, question, answer, pname)
+                    else:
+                        prof.applications_since_review = 0
+                        save_profile(prof, pname)
+                        click.echo("Keeping existing resume.")
                 else:
-                    # Reset counter even if they decline
+                    # Reset counter even if no answers
                     prof.applications_since_review = 0
                     save_profile(prof, pname)
             except Exception as e:
-                logger.warning("Baseline review failed: %s", e)
-                click.echo(f"Warning: Review failed ({e}). Continuing.")
+                logger.warning("Baseline enrichment failed: %s", e)
+                click.echo(f"Warning: Enrichment failed ({e}). Continuing.")
 
     # Experience bank review — prompt after every 10 applications
     if (
