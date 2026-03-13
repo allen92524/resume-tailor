@@ -15,6 +15,8 @@
 - If the original bullet contains a number, preserve it exactly in the improved version
 - If the original bullet has NO number, use placeholders like [X%] or [number] where a metric would strengthen the bullet
 - Wrap each placeholder in square brackets, e.g. [X%], [number], [X hours]
+- Maximum 1-2 placeholders per bullet — never overload a single sentence with 3+ blanks to fill in
+- Only use metric types that are realistic for the candidate's actual profession — do not default to software engineering metrics (requests/day, latency, uptime) for non-engineering roles
 
 ## DATES
 - NEVER modify, correct, or adjust employment dates from the original resume

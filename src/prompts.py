@@ -99,6 +99,16 @@ _ri = _load("resume_improve.md")
 RESUME_IMPROVE_SYSTEM = _ri[0]
 RESUME_IMPROVE_USER = _ri[1]
 
+# Resume Enrich (enrichment analysis)
+_re_enrich = _load("resume_enrich.md")
+RESUME_ENRICH_SYSTEM = _re_enrich[0]
+RESUME_ENRICH_USER = _re_enrich[1]
+
+# Resume Improve (enrichment variant — no placeholders)
+_rie = _load("resume_improve_enriched.md")
+RESUME_IMPROVE_ENRICHED_SYSTEM = _rie[0]
+RESUME_IMPROVE_ENRICHED_USER = _rie[1]
+
 # Contact Extraction
 _ce = _load("contact_extraction.md")
 CONTACT_EXTRACTION_SYSTEM = _ce[0]

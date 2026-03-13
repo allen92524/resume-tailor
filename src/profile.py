@@ -246,16 +246,92 @@ def _ask_weakness_questions(
     return answers, all_skipped
 
 
+def _ask_enrichment_questions(
+    enrichment: "EnrichmentAnalysis",
+    model: str = DEFAULT_MODEL,
+) -> dict[str, str]:
+    """Walk through enrichment questions with conversational Q&A.
+
+    Uses the LLM-driven conversational engine to ask follow-ups for vague
+    answers and generate per-bullet previews for confirmation.
+
+    Returns dict mapping question text to user answers (or confirmed
+    improved bullets).
+    """
+    from .conversation import conversational_qa, generate_improved_bullet, confirm_bullet
+
+    answers: dict[str, str] = {}
+
+    if not enrichment.questions:
+        return answers
+
+    click.echo(
+        click.style(
+            "\nLet's gather some details to strengthen your resume.",
+            fg="cyan",
+            bold=True,
+        )
+    )
+    click.echo("Answer each question or press Enter to skip.\n")
+
+    for q in enrichment.questions:
+        click.echo(click.style(f"  [{q.role}]", bold=True))
+
+        initial_question = q.question
+        if q.example_answers:
+            initial_question += f"\n    ({q.example_answers})"
+
+        answer = conversational_qa(
+            context_type="resume enrichment",
+            context_description=q.question,
+            initial_question=initial_question,
+            bullet_text=q.bullet_text,
+            model=model,
+        )
+
+        if answer:
+            # Generate an improved bullet preview if we have a matching bullet
+            if q.bullet_text:
+                try:
+                    improved = generate_improved_bullet(
+                        original_bullet=q.bullet_text,
+                        weakness_context=q.question,
+                        user_answers=answer,
+                        model=model,
+                    )
+                    confirmed = confirm_bullet(improved)
+                    if confirmed:
+                        answers[q.question] = confirmed
+                        click.echo(click.style("    Saved.", fg="green"))
+                    else:
+                        # User rejected — still save raw answer
+                        answers[q.question] = answer
+                        click.echo(
+                            click.style("    Using your raw answer.", fg="yellow")
+                        )
+                except Exception:
+                    logger.debug("Bullet improvement failed, using raw answer")
+                    answers[q.question] = answer
+                    click.echo(click.style("    Saved.", fg="green"))
+            else:
+                answers[q.question] = answer
+                click.echo(click.style("    Saved.", fg="green"))
+        else:
+            click.echo("    Skipped.")
+        click.echo("")
+
+    return answers
+
+
 def first_run_setup(
     profile_name: str = DEFAULT_PROFILE, model: str = DEFAULT_MODEL
 ) -> Profile:
-    """First-run experience: collect base resume, review it, and create profile."""
+    """First-run experience: collect base resume, enrich it, and create profile."""
     from .resume_parser import collect_resume_text
-    from .resume_reviewer import (
-        review_resume,
-        improve_resume,
-        display_review,
-        resolve_resume_placeholders,
+    from .resume_enricher import (
+        enrich_resume,
+        display_enrichment,
+        improve_resume_with_enrichment,
     )
 
     click.echo("\n" + "=" * 50)
@@ -276,39 +352,23 @@ def first_run_setup(
     # Preserve the original upload before any modifications
     original_resume_text = resume_text
 
-    # Review the resume before saving
-    click.echo("\nReviewing your resume...")
+    # Enrich the resume before saving
+    click.echo("\nAnalyzing your resume...")
     try:
-        review = review_resume(resume_text, model=model)
-        display_review(review)
+        enrichment = enrich_resume(resume_text, model=model)
+        display_enrichment(enrichment)
 
-        # Walk through each weakness with targeted questions
-        answers, all_skipped = _ask_weakness_questions(review, model=model)
+        # Walk through enrichment questions to gather real data
+        answers = _ask_enrichment_questions(enrichment, model=model)
 
         if answers:
-            # Build improvement instructions from user answers
-            answer_context = "\n".join(
-                f"- {issue}: {answer}" for issue, answer in answers.items()
-            )
-            # Add answers to the review weaknesses as concrete suggestions
-            from .models import ReviewWeakness
-
-            review.weaknesses.append(
-                ReviewWeakness(
-                    section="User Provided",
-                    issue="Additional context from user",
-                    suggestion=f"Incorporate these details:\n{answer_context}",
-                )
-            )
-
             click.echo("Improving your resume with your answers...")
-            resume_text = improve_resume(
+            resume_text = improve_resume_with_enrichment(
                 resume_text,
-                review,
-                skipped_placeholders=all_skipped or None,
+                enrichment,
+                answers,
                 model=model,
             )
-            resume_text = resolve_resume_placeholders(resume_text)
 
             # Show the improved version and get confirmation
             click.echo("\n" + "=" * 50)
@@ -329,12 +389,14 @@ def first_run_setup(
 
         # Save raw answers to experience bank for future reuse
         experience_bank_entries: dict[str, str] = {}
-        for issue, answer in answers.items():
-            experience_bank_entries[issue] = answer
+        for question, answer in answers.items():
+            experience_bank_entries[question] = answer
 
     except Exception as e:
-        logger.warning("Resume review failed: %s", e)
-        click.echo(f"Warning: Resume review failed ({e}). Continuing with original.")
+        logger.warning("Resume enrichment failed: %s", e)
+        click.echo(
+            f"Warning: Resume enrichment failed ({e}). Continuing with original."
+        )
         experience_bank_entries = {}
 
     profile = create_profile(

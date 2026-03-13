@@ -21,9 +21,12 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - If no profile → first-run setup using the selected model:
   - Collect base resume (paste or file path)
   - Save as `original_resume` (never modified after this)
-  - Review resume via LLM, show score/suggestions
-  - Walk through each weakness with targeted Q&A (simple, concrete questions with examples)
-  - Use user's answers to improve specific bullets — only change what user confirmed
+  - Enrich resume via LLM: detect profession/industry, identify strengths, find information gaps
+  - Show detected profession and strengths
+  - Walk through enrichment questions — targeted Q&A about missing facts (team size, metrics, scope, achievements)
+  - Questions ask for FACTS the candidate knows, not quality judgments
+  - Most recent role first, profession-appropriate examples (e.g. "e.g. 5, 10, 20+" not "e.g. 99.9% uptime")
+  - Use user's real answers to improve resume — no placeholders needed
   - Never change education, certifications, job titles, or dates without explicit confirmation
   - Show improved resume and get confirmation before saving
   - Save improved version as `base_resume`, original stays as `original_resume`
@@ -52,33 +55,20 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - Ask: "Do you have a reference resume from someone in a similar role? (file path or Enter to skip)"
 - If provided → parse and hold for later analysis
 
-### Step 5: Resume Review (first-time only)
-- Send resume to LLM for standalone quality review
-- Show: score, strengths, weaknesses, missing keywords, suggested bullet improvements
-- Walk through each weakness with targeted Q&A (not "incorporate suggestions? y/n")
-- Question style: simple, concrete with examples (e.g. "How many servers? e.g. 30, 100, 500+")
-- Most recent role first, work backwards
-- Build on previous answers — don't re-ask
-- Ask prerequisites first if questions have dependencies
-- Use user's answers to improve specific bullets — only change what user confirmed
-- Never change education, certifications, job titles, or dates
-- Save each raw answer to experience bank
-- Show improved resume preview and get confirmation before saving
-
-### Step 6: JD Input
+### Step 5: JD Input
 - Ask user to paste or provide file path to target job description
 - Show word count and detected role, ask to confirm
 
-### Step 7: JD Analysis
+### Step 6: JD Analysis
 - Send JD + reference resume (if provided) to LLM
 - Extract: role, company, required skills, preferred skills, keywords, responsibilities
 
-### Step 8: Gap Analysis & Follow-Up Questions
+### Step 7: Gap Analysis & Follow-Up Questions
 - Compare resume against JD analysis
 - Show strengths (what already matches)
 - Ask smart questions about gaps — ordered by importance to the JD
-- Question style: simple, concrete with examples, matching Step 5 style
-- Build on what user already answered in Step 5 and experience bank — don't re-ask
+- Question style: simple, concrete with profession-appropriate examples
+- Build on what user already answered during onboarding and experience bank — don't re-ask
 - Check experience bank for saved answers, reuse with option to update
 - Smart follow-up on "No" answers: suggest adjacent skills (e.g. "Even related experience counts. For example: Docker, ECS/Fargate, container orchestration. Have you done anything like that?")
 - If user still says no → save "No" and move on
@@ -86,27 +76,27 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - Save new answers to experience bank
 - Also ask generic questions: additional skills, what to emphasize, preferred title
 
-### Step 9: Compatibility Assessment
+### Step 8: Compatibility Assessment
 - Score 0-100% match
 - Show: strong matches, addressable gaps, missing items
 - Recommendation on whether to proceed
 - If score < 30% → warn user
 - Ask: "Proceed with generation? (y/n)"
 
-### Step 10: Generate Tailored Resume
+### Step 9: Generate Tailored Resume
 - Send resume + JD analysis + gap answers + reference insights + writing preferences to LLM
 - Career growth rules: different language per role seniority, no verb repetition, timeline-aware terminology
 - Use [X%] and [number] placeholders, never fabricate metrics
 - Ask user to fill in each placeholder with context shown
 - Strip % from user input to avoid double %%
 
-### Step 10b: Section-by-Section Review
+### Step 9b: Section-by-Section Review
 - Show generated resume section by section (summary, experience, skills)
 - For each section ask: "Looks good? (Enter to accept, or type feedback)"
 - Capture writing style preferences from feedback (e.g. "too formal", "shorter bullets")
 - Save writing preferences to profile for all future generations
 
-### Step 11: Output
+### Step 10: Output
 - Build DOCX with professional formatting
 - Use profile identity for contact info (always override)
 - Filename: Name_Company_Role.format (e.g. Jane_Doe_Google_Sr_Platform_Eng.pdf)
