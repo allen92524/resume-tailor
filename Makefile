@@ -7,7 +7,7 @@ BLACK := $(VENV)/bin/black
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run docker-ollama test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
+.PHONY: help install dev-install test lint format check-secrets run run-local run-profile dry-run api metrics docker-build docker-run docker-generate docker-review docker-profile docker-ollama test-docker helm-install helm-uninstall helm-template argocd-setup argocd-status release-patch release-minor release-major release-push clean
 
 help: ## Show all available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -71,22 +71,21 @@ metrics: ## Fetch raw Prometheus metrics from the running API
 docker-build: ## Build Docker image
 	docker build -t resume-tailor .
 
-docker-run: ## Run Docker container with Claude API
-	docker run -it --rm \
-		-e ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) \
-		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
-		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
-		-v $(PWD)/output:/output \
-		resume-tailor generate
+docker-run: ## Run any command in Docker (e.g. make docker-run CMD="profile view")
+	docker compose run --rm resume-tailor $(CMD)
 
-docker-ollama: ## Run Docker + host Ollama (e.g. make docker-ollama MODEL=ollama:gemma3)
+docker-generate: ## Run generate in Docker with PDF output
+	docker compose run --rm resume-tailor generate --format pdf --output /output/
+
+docker-review: ## Run review in Docker
+	docker compose run --rm resume-tailor review
+
+docker-profile: ## Run profile view in Docker
+	docker compose run --rm resume-tailor profile view
+
+docker-ollama: ## Run generate with host Ollama (e.g. make docker-ollama MODEL=ollama:gemma3)
 	@test -n "$(MODEL)" || (echo "Usage: make docker-ollama MODEL=ollama:<model-name>" && echo "  Requires Ollama running on your machine (ollama serve)" && exit 1)
-	docker run -it --rm \
-		--network host \
-		-e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) \
-		-v $(HOME)/.resume-tailor:/root/.resume-tailor \
-		-v $(PWD)/output:/output \
-		resume-tailor-resume-tailor generate --model $(MODEL) --format pdf --output /output/
+	docker compose run --rm resume-tailor generate --model $(MODEL) --format pdf --output /output/
 
 test-docker: docker-build ## Build and smoke-test Docker image
 	@echo "==> Testing dry-run (no API key needed)..."

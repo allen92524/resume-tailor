@@ -34,7 +34,7 @@ Get your API key at https://console.anthropic.com/settings/keys (starts with `sk
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"
-docker compose run --rm resume-tailor
+docker compose run --rm resume-tailor generate
 ```
 
 **Option B: Ollama** (completely free)

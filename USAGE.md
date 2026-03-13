@@ -273,7 +273,7 @@ Docker is the easiest way to run Resume Tailor — it includes Python, all depen
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-your-key"
-docker compose run --rm resume-tailor
+docker compose run --rm resume-tailor generate
 ```
 
 ### Docker + Ollama (free)
@@ -619,7 +619,10 @@ Run `make help` to see this list in your terminal.
 | `make api` | Start the REST API server on port 8000 |
 | `make metrics` | Fetch metrics from the running API |
 | `make docker-build` | Build the Docker image |
-| `make docker-run` | Run the Docker container (Claude API) |
+| `make docker-run CMD="..."` | Run any command in Docker |
+| `make docker-generate` | Run generate in Docker with PDF output |
+| `make docker-review` | Run review in Docker |
+| `make docker-profile` | View profile in Docker |
 | `make docker-ollama MODEL=ollama:gemma3` | Run Docker with local Ollama |
 | `make test-docker` | Build and smoke-test the Docker image |
 | `make helm-install` | Deploy to Kubernetes via Helm |
