@@ -214,39 +214,76 @@ def profile_edit(ctx):
     choice = click.prompt("Choose", type=click.IntRange(1, 3), default=1)
 
     if choice == 1:
+        # Full-screen prompt_toolkit editor — best UX for editing long free-form text.
         _edit_resume_interactive(prof, pname)
     elif choice == 2:
+        # Simple field-by-field prompts — 6 short fields don't need a full-screen editor.
         _edit_contact_interactive(prof, pname)
     else:
+        # Raw JSON in nano/vi — power-user option; nano/vi provides syntax awareness
+        # and is the right tool for structured data editing.
         path = get_profile_path(pname)
         click.echo(f"Opening {path}...")
         open_in_editor(path)
 
 
 def _edit_resume_interactive(prof, pname: str) -> None:
-    """Edit the resume using prompt_toolkit's multiline editor."""
-    from prompt_toolkit import prompt as pt_prompt
+    """Edit the resume in a full-screen text editor powered by prompt_toolkit."""
+    from prompt_toolkit import Application
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
     from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout.containers import HSplit, Window
+    from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+    from prompt_toolkit.layout.layout import Layout
+
+    line_count = len(prof.base_resume.splitlines())
+    click.echo(f"\nOpening resume editor ({line_count} lines)...")
 
     bindings = KeyBindings()
+    saved = {"result": None}
 
     @bindings.add("c-s")
     def _save(event):
         """Ctrl+S to save and exit."""
-        event.app.exit(result=event.app.current_buffer.text)
+        saved["result"] = event.app.current_buffer.text
+        event.app.exit()
 
-    click.echo("\nEditing your resume. Make your changes below.")
-    click.echo("  Ctrl+S = save    |    Ctrl+C = cancel\n")
-    click.echo("-" * 50)
+    @bindings.add("c-c")
+    def _cancel(event):
+        """Ctrl+C to cancel."""
+        event.app.exit()
+
+    buffer = Buffer(
+        document=Document(prof.base_resume, cursor_position=0),
+        multiline=True,
+    )
+
+    editor_window = Window(content=BufferControl(buffer=buffer), wrap_lines=True)
+    status_bar = Window(
+        content=FormattedTextControl(
+            lambda: [
+                ("bg:#005fff fg:white bold", " Ctrl+S "),
+                ("bg:#444444 fg:white", " Save  "),
+                ("bg:#cc4444 fg:white bold", " Ctrl+C "),
+                ("bg:#444444 fg:white", " Cancel  "),
+                ("bg:#333333 fg:#aaaaaa", f" Line {buffer.document.cursor_position_row + 1}/{len(buffer.document.lines)} "),
+            ]
+        ),
+        height=1,
+    )
+
+    layout = Layout(HSplit([editor_window, status_bar]))
+    app = Application(layout=layout, key_bindings=bindings, full_screen=True)
 
     try:
-        edited = pt_prompt(
-            "",
-            default=prof.base_resume,
-            multiline=True,
-            key_bindings=bindings,
-        )
+        app.run()
     except KeyboardInterrupt:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = saved["result"]
+    if edited is None:
         click.echo("\nCancelled. No changes made.")
         return
 
