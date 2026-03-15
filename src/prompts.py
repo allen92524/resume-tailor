@@ -123,3 +123,8 @@ CONVERSATIONAL_FOLLOWUP_USER = _cf[1]
 _bi = _load("bullet_improve_single.md")
 BULLET_IMPROVE_SINGLE_SYSTEM = _bi[0]
 BULLET_IMPROVE_SINGLE_USER = _bi[1]
+
+# Conflict Check
+_cc = _load("conflict_check.md")
+CONFLICT_CHECK_SYSTEM = _cc[0]
+CONFLICT_CHECK_USER = _cc[1]
