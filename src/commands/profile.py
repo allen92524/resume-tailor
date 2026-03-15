@@ -4,11 +4,10 @@ import os
 
 import click
 
-from src.config import DEFAULT_PROFILE, get_profile_path
+from src.config import DEFAULT_PROFILE
 from src.profile import (
     save_profile,
     delete_profile,
-    open_in_editor,
     export_as_markdown,
     backup_profile,
     list_backups,
@@ -193,17 +192,345 @@ def profile_reset_baseline(ctx):
 @profile.command("edit")
 @click.pass_context
 def profile_edit(ctx):
-    """Open profile.json in the default editor."""
+    """Edit your saved resume in an interactive text editor."""
     pname = ctx.obj["profile_name"]
     pname, prof = select_profile_interactive(pname)
     ctx.obj["profile_name"] = pname
     if not prof:
         click.echo("No profile found. Run `generate` first to create one.")
         return
-    path = get_profile_path(pname)
 
-    click.echo(f"Opening {path}...")
-    open_in_editor(path)
+    if not prof.base_resume:
+        click.echo("No resume saved in this profile yet.")
+        return
+
+    click.echo("\nWhat would you like to edit?\n")
+    click.echo("  1. Resume")
+    click.echo("  2. Contact info (name, email, phone, etc.)")
+    click.echo("  3. Experience bank (your enrichment Q&A answers)")
+    click.echo()
+
+    choice = click.prompt("Choose", type=click.IntRange(1, 3), default=1)
+
+    if choice == 1:
+        # Full-screen prompt_toolkit editor — best UX for editing long free-form text.
+        _edit_resume_interactive(prof, pname)
+    elif choice == 2:
+        # Simple field-by-field prompts — 6 short fields don't need a full-screen editor.
+        _edit_contact_interactive(prof, pname)
+    else:
+        # Full-screen prompt_toolkit editor — same as resume, experience bank is
+        # free-form text (topic: answer pairs) that benefits from the same UX.
+        _edit_experience_bank_interactive(prof, pname)
+
+
+def _check_and_resolve_conflicts(prof, pname: str) -> None:
+    """Use the LLM to check for contradictions between resume and experience bank.
+
+    Called after saving edits to resume (option 1) or experience bank (option 3).
+    If conflicts are found, asks the user questions to resolve each one and
+    updates the experience bank with corrected answers.
+    """
+    import json
+
+    from src.commands.common import select_model_interactive, validate_api_key
+    from src.config import MAX_TOKENS_CONFLICT_CHECK
+    from src.llm_client import call_llm
+    from src.prompts import CONFLICT_CHECK_SYSTEM, CONFLICT_CHECK_USER
+
+    if not prof.base_resume or not prof.experience_bank:
+        return
+
+    click.echo("\nChecking for contradictions...")
+
+    # Use saved model preference or ask
+    model = prof.preferences.get("model", "")
+    if not model:
+        model = select_model_interactive({})
+    validate_api_key(model)
+
+    # Format experience bank for the prompt
+    eb_text = "\n".join(
+        f"- {topic}: {answer}" for topic, answer in prof.experience_bank.items()
+    )
+
+    try:
+        response = call_llm(
+            model=model,
+            max_tokens=MAX_TOKENS_CONFLICT_CHECK,
+            system=CONFLICT_CHECK_SYSTEM,
+            user_content=CONFLICT_CHECK_USER.format(
+                resume_text=prof.base_resume,
+                experience_bank=eb_text,
+            ),
+            purpose="conflict check",
+        )
+
+        data = json.loads(response)
+        conflicts = data.get("conflicts", [])
+    except Exception as e:
+        click.echo(f"Could not check for conflicts: {e}")
+        return
+
+    if not conflicts:
+        click.echo("No contradictions found.")
+        return
+
+    click.echo(f"\nFound {len(conflicts)} contradiction(s):\n")
+
+    for i, conflict in enumerate(conflicts, 1):
+        click.echo(f"  {i}. {conflict['description']}")
+        click.echo(f"     - \"{conflict['source_a']}\"")
+        click.echo(f"     - \"{conflict['source_b']}\"")
+        click.echo()
+
+        answer = click.prompt(f"  {conflict['question']}", default="skip")
+        if answer.lower() == "skip":
+            click.echo("  Skipped.\n")
+            continue
+
+        # Find and update the experience bank entry that matches
+        # Try to match the conflict to an experience bank topic
+        updated = False
+        for topic in prof.experience_bank:
+            if topic.lower() in conflict.get("source_a", "").lower() or \
+               topic.lower() in conflict.get("source_b", "").lower():
+                prof.experience_bank[topic] = answer
+                click.echo(f"  Updated '{topic}' in experience bank.\n")
+                updated = True
+                break
+
+        if not updated:
+            # If no matching topic found, store under the conflict description
+            key = conflict["description"][:80]
+            prof.experience_bank[key] = answer
+            click.echo("  Saved answer to experience bank.\n")
+
+    save_profile(prof, pname)
+    click.echo("Profile updated with conflict resolutions.")
+
+
+def _edit_resume_interactive(prof, pname: str) -> None:
+    """Edit the resume in a full-screen text editor powered by prompt_toolkit."""
+    from prompt_toolkit import Application
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout.containers import HSplit, Window
+    from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+    from prompt_toolkit.layout.layout import Layout
+
+    line_count = len(prof.base_resume.splitlines())
+    click.echo(f"\nOpening resume editor ({line_count} lines)...")
+
+    bindings = KeyBindings()
+    saved = {"result": None}
+
+    @bindings.add("c-s")
+    def _save(event):
+        """Ctrl+S to save and exit."""
+        saved["result"] = event.app.current_buffer.text
+        event.app.exit()
+
+    @bindings.add("c-c")
+    def _cancel(event):
+        """Ctrl+C to cancel."""
+        event.app.exit()
+
+    buffer = Buffer(
+        document=Document(prof.base_resume, cursor_position=0),
+        multiline=True,
+    )
+
+    editor_window = Window(content=BufferControl(buffer=buffer), wrap_lines=True)
+    status_bar = Window(
+        content=FormattedTextControl(
+            lambda: [
+                ("bg:#005fff fg:white bold", " Ctrl+S "),
+                ("bg:#444444 fg:white", " Save  "),
+                ("bg:#cc4444 fg:white bold", " Ctrl+C "),
+                ("bg:#444444 fg:white", " Cancel  "),
+                ("bg:#333333 fg:#aaaaaa", f" Line {buffer.document.cursor_position_row + 1}/{len(buffer.document.lines)} "),
+            ]
+        ),
+        height=1,
+    )
+
+    layout = Layout(HSplit([editor_window, status_bar]))
+    app = Application(layout=layout, key_bindings=bindings, full_screen=True)
+
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = saved["result"]
+    if edited is None:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = edited.strip()
+    if not edited:
+        click.echo("Empty resume. No changes made.")
+        return
+
+    if edited == prof.base_resume:
+        click.echo("No changes detected.")
+        return
+
+    old_words = len(prof.base_resume.split())
+    new_words = len(edited.split())
+    click.echo(f"\nResume changed: {old_words} words -> {new_words} words")
+
+    if click.confirm("Save changes?", default=True):
+        prof.base_resume = edited
+        save_profile(prof, pname)
+        click.echo("Resume updated.")
+        _check_and_resolve_conflicts(prof, pname)
+    else:
+        click.echo("Cancelled.")
+
+
+def _edit_contact_interactive(prof, pname: str) -> None:
+    """Edit contact info with simple prompts (same as profile update)."""
+    identity = prof.identity
+    fields = ["name", "email", "phone", "location", "linkedin", "github"]
+    changed = False
+
+    click.echo("\nUpdate your profile. Press Enter to keep the current value.\n")
+    for field in fields:
+        current = getattr(identity, field) or ""
+        display = current if current else "(not set)"
+        new_value = click.prompt(
+            f"  {field.capitalize()} [{display}]",
+            default="",
+            show_default=False,
+        )
+        if new_value.strip():
+            setattr(identity, field, new_value.strip())
+            changed = True
+
+    if changed:
+        save_profile(prof, pname)
+        click.echo("\nProfile updated.")
+    else:
+        click.echo("\nNo changes made.")
+
+
+def _edit_experience_bank_interactive(prof, pname: str) -> None:
+    """Edit the experience bank in a full-screen prompt_toolkit editor."""
+    from prompt_toolkit import Application
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.document import Document
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout.containers import HSplit, Window
+    from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+    from prompt_toolkit.layout.layout import Layout
+
+    if not prof.experience_bank:
+        click.echo("No experience bank entries yet. Run `generate` to build one.")
+        return
+
+    # Render dict as editable text: "Topic: answer" per entry, separated by blank lines
+    lines = []
+    for topic, answer in prof.experience_bank.items():
+        lines.append(f"{topic}: {answer}")
+    text = "\n\n".join(lines)
+
+    line_count = len(text.splitlines())
+    click.echo(f"\nOpening experience bank editor ({len(prof.experience_bank)} entries, {line_count} lines)...")
+    click.echo("Each entry is formatted as 'Topic: answer', separated by blank lines.\n")
+
+    bindings = KeyBindings()
+    saved = {"result": None}
+
+    @bindings.add("c-s")
+    def _save(event):
+        saved["result"] = event.app.current_buffer.text
+        event.app.exit()
+
+    @bindings.add("c-c")
+    def _cancel(event):
+        event.app.exit()
+
+    buffer = Buffer(
+        document=Document(text, cursor_position=0),
+        multiline=True,
+    )
+
+    editor_window = Window(content=BufferControl(buffer=buffer), wrap_lines=True)
+    status_bar = Window(
+        content=FormattedTextControl(
+            lambda: [
+                ("bg:#005fff fg:white bold", " Ctrl+S "),
+                ("bg:#444444 fg:white", " Save  "),
+                ("bg:#cc4444 fg:white bold", " Ctrl+C "),
+                ("bg:#444444 fg:white", " Cancel  "),
+                (
+                    "bg:#333333 fg:#aaaaaa",
+                    f" Line {buffer.document.cursor_position_row + 1}"
+                    f"/{len(buffer.document.lines)} ",
+                ),
+            ]
+        ),
+        height=1,
+    )
+
+    layout = Layout(HSplit([editor_window, status_bar]))
+    app = Application(layout=layout, key_bindings=bindings, full_screen=True)
+
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = saved["result"]
+    if edited is None:
+        click.echo("\nCancelled. No changes made.")
+        return
+
+    edited = edited.strip()
+    if not edited:
+        click.echo("Empty experience bank. No changes made.")
+        return
+
+    # Parse back into dict: split on blank lines, each block is "Topic: answer"
+    new_bank = {}
+    for block in edited.split("\n\n"):
+        block = block.strip()
+        if not block:
+            continue
+        colon_idx = block.find(":")
+        if colon_idx == -1:
+            # No colon — treat entire block as topic with empty answer
+            new_bank[block] = ""
+        else:
+            topic = block[:colon_idx].strip()
+            answer = block[colon_idx + 1 :].strip()
+            if topic:
+                new_bank[topic] = answer
+
+    if new_bank == prof.experience_bank:
+        click.echo("No changes detected.")
+        return
+
+    added = set(new_bank) - set(prof.experience_bank)
+    removed = set(prof.experience_bank) - set(new_bank)
+    click.echo(f"\nExperience bank: {len(prof.experience_bank)} -> {len(new_bank)} entries")
+    if added:
+        click.echo(f"  Added: {', '.join(sorted(added))}")
+    if removed:
+        click.echo(f"  Removed: {', '.join(sorted(removed))}")
+
+    if click.confirm("Save changes?", default=True):
+        prof.experience_bank = new_bank
+        save_profile(prof, pname)
+        click.echo("Experience bank updated.")
+        _check_and_resolve_conflicts(prof, pname)
+    else:
+        click.echo("Cancelled.")
 
 
 @profile.command("export")
