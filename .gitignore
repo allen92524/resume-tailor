@@ -4,5 +4,6 @@ __pycache__/
 *.pyc
 .session.json
 .env
+.claude/
 **/profile.json
 *.pdf

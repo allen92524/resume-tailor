@@ -27,11 +27,11 @@ Claude Code should read this to understand the project history and design philos
 12. **Profession-neutral prompts** — all prompts detect the candidate's profession before generating feedback. Metric types, keyword suggestions, and examples must match the candidate's actual field, not default to software engineering.
 13. **Conflict resolution updates source data** — when conflicts are found between resume and experience bank, resolved answers update the original entries in place (not stacked as clarification entries). If the conflict involves resume text, the resume is auto-corrected. Conflict check includes today's date to avoid false timeline flags.
 14. **Conversational Q&A everywhere** — all user-facing questions (gap analysis, conflict resolution, enrichment) use the `conversational_qa` engine with follow-up questions, not plain `click.prompt`. This helps users who give vague or incomplete answers.
-15. **Semantic experience bank matching** — gap analysis matches skills to experience bank entries using LLM semantic understanding in 1 batch call, not exact name matching. "AI coding tools" correctly matches an entry about "GitHub Copilot experience".
+15. **Unified Step 7 analysis** — replaced separate gap analysis + semantic matching + synthesis with ONE unified LLM call that sees resume + work history + JD together. Returns strengths, gaps, conflicts, and prioritized questions in one pass. Gaps and conflicts mixed naturally in one conversational flow.
 16. **Step 8 sees gap answers** — compatibility assessment receives `user_additions` (gap answers) so the score reflects what the user told us, not just what's on the resume.
 17. **Writing preferences asked once** — collected upfront before generation, saved to profile. No section-by-section review loop. Users can update via `profile edit`.
 18. **No redundant re-enrichment** — periodic maintenance (every 10 apps) only reviews the experience bank, not re-enrichment of the already-improved resume. Step 3b ("anything new?") handles resume updates.
-19. **LLM-managed experience bank** — users never directly edit experience bank text. All changes go through conversational Q&A. When matched entries exist for a gap skill, the LLM synthesizes them into a single answer, checks for conflicts, and the user confirms "Is this correct?" or corrects via Q&A. This prevents unpredictable edits that cause data inconsistencies.
+19. **LLM-managed structured work history** — replaced flat `experience_bank` with `work_history` grouped by `"Company | Title | Dates"`. Added `education` (list) and `certifications` (list) as immutable facts. Users never directly edit work history — all changes go through conversational Q&A. Existing profiles auto-migrate on first `generate` (LLM groups entries by role, extracts education/certs from resume, auto-backup before migration).
 20. **MCP integration (Model Context Protocol)** — URL fetching for JD input (Step 5) and reference resumes (Step 4) via `mcp-server-fetch`. Optional Brave Search for company research (Step 7, needs `BRAVE_API_KEY`). Most JS-rendered job sites (LinkedIn, Greenhouse, etc.) fail gracefully with fallback to manual paste.
 21. **URL extraction validation** — fetched pages are truncated to 30K chars before LLM processing. LLM responses are checked for apology/failure signals and minimum word count (150+ words for a real JD) to prevent showing error messages as job descriptions.
 
@@ -46,7 +46,7 @@ Claude Code should read this to understand the project history and design philos
 
 ## Testing Requirements
 - Run `make lint` and `make test` before every commit
-- 513+ tests must pass
+- 527+ tests must pass
 - Test with real Docker containers, not just mocked unit tests
 - Test on different machines (WSL, Mac) to catch platform issues
 - Use E2E_CHECKLIST.md for manual testing before releases
