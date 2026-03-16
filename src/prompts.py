@@ -128,3 +128,8 @@ BULLET_IMPROVE_SINGLE_USER = _bi[1]
 _cc = _load("conflict_check.md")
 CONFLICT_CHECK_SYSTEM = _cc[0]
 CONFLICT_CHECK_USER = _cc[1]
+
+# Experience Bank Matching
+_ebm = _load("experience_bank_match.md")
+EXPERIENCE_BANK_MATCH_SYSTEM = _ebm[0]
+EXPERIENCE_BANK_MATCH_USER = _ebm[1]
