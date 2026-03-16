@@ -144,9 +144,21 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
         click.echo("Please paste the job description manually instead.")
         return None
 
-    if not page_content or len(page_content.strip()) < 100:
+    if not page_content or len(page_content.strip()) < 200:
         click.echo(
             "The page returned very little content (may require JavaScript). "
+            "Please paste the job description manually instead."
+        )
+        return None
+
+    # Check if the fetched content itself indicates a failure
+    content_lower = page_content.lower()
+    if any(
+        signal in content_lower
+        for signal in ["page failed to be simplified", "failed to fetch", "access denied"]
+    ):
+        click.echo(
+            "The page could not be read properly (the site may block automated access).\n"
             "Please paste the job description manually instead."
         )
         return None
@@ -207,13 +219,20 @@ def _looks_like_extraction_failure(text: str) -> bool:
         "i apologize",
         "i'm unable to",
         "i cannot access",
+        "i cannot extract",
         "unable to extract",
         "no job description found",
+        "no job posting",
         "robots.txt",
         "access is not permitted",
         "could not find",
+        "failed to load",
+        "failed to be simplified",
+        "content is not available",
         "visit the page directly",
+        "visit the url",
         "copy the job description",
+        "copy and paste",
     ]
     matches = sum(1 for signal in failure_signals if signal in lower)
     # If 2+ failure signals found, it's likely an error, not a JD
