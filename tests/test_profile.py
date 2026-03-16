@@ -238,6 +238,75 @@ class TestProfileNewFields:
         loaded = load_profile()
         assert loaded.original_resume == "Original"
 
+    def test_work_history_roundtrip(self, profile_dir):
+        """New structured work_history field saves and loads correctly."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={
+                "Acme Corp | Engineer | 2020-2023": {
+                    "Python": "Built backend services",
+                    "team_size": "8 engineers",
+                },
+                "StartupX | Intern | 2019": {
+                    "JavaScript": "Built React frontend",
+                },
+            },
+            education=[
+                {"degree": "B.S. Computer Science", "school": "MIT", "year": "2019"},
+            ],
+            certifications=["AWS SAA", "CKA"],
+            schema_version=2,
+        )
+        save_profile(profile)
+        loaded = load_profile()
+        assert loaded.schema_version == 2
+        assert len(loaded.work_history) == 2
+        assert loaded.work_history["Acme Corp | Engineer | 2020-2023"]["Python"] == "Built backend services"
+        assert loaded.education[0]["school"] == "MIT"
+        assert "CKA" in loaded.certifications
+
+    def test_needs_migration_old_profile(self):
+        """Profile with experience_bank but no work_history needs migration."""
+        profile = Profile(
+            experience_bank={"Python": "10 years"},
+            schema_version=1,
+        )
+        assert profile.needs_migration is True
+
+    def test_needs_migration_new_profile(self):
+        """Profile with schema_version=2 does not need migration."""
+        profile = Profile(
+            work_history={"Acme | Eng | 2020": {"Python": "yes"}},
+            schema_version=2,
+        )
+        assert profile.needs_migration is False
+
+    def test_needs_migration_empty_old_profile(self):
+        """Empty experience bank does not trigger migration."""
+        profile = Profile(experience_bank={}, schema_version=1)
+        assert profile.needs_migration is False
+
+    def test_backward_compat_old_format_loads(self, profile_dir):
+        """Old profile JSON without new fields loads correctly with defaults."""
+        _, profile_path = profile_dir
+        data = {
+            "identity": {"name": "Test"},
+            "base_resume": "My resume",
+            "experience_bank": {"Go": "3 years"},
+            "history": [],
+            "preferences": {},
+        }
+        with open(profile_path, "w") as f:
+            json.dump(data, f)
+
+        loaded = load_profile()
+        assert loaded.experience_bank == {"Go": "3 years"}
+        assert loaded.work_history == {}
+        assert loaded.education == []
+        assert loaded.certifications == []
+        assert loaded.schema_version == 1
+        assert loaded.needs_migration is True
+
 
 class TestExtractIdentity:
     def test_extract_identity_mocked(self, sample_resume):
