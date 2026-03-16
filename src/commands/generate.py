@@ -55,6 +55,78 @@ from src.commands.common import (
 logger = logging.getLogger(__name__)
 
 
+def _fetch_reference_from_url(url: str, model: str) -> str | None:
+    """Fetch a reference resume from a URL via MCP and extract content."""
+    from src.llm_client import call_llm
+    from src.mcp_client import fetch_url
+    from src.prompts import EXTRACT_RESUME_SYSTEM, EXTRACT_RESUME_USER
+
+    click.echo("Fetching reference resume from URL...")
+    try:
+        page_content = fetch_url(url)
+    except Exception as e:
+        logger.warning("Failed to fetch reference URL %s: %s", url, e)
+        click.echo(f"  Could not fetch URL: {e}. Skipping reference resume.")
+        return None
+
+    if not page_content or len(page_content.strip()) < 100:
+        click.echo("  Page returned very little content. Skipping reference resume.")
+        return None
+
+    click.echo(f"  Page fetched ({len(page_content)} chars). Extracting resume content...")
+    try:
+        resume_text = call_llm(
+            model=model,
+            max_tokens=4096,
+            system=EXTRACT_RESUME_SYSTEM,
+            user_content=EXTRACT_RESUME_USER.format(page_content=page_content),
+            purpose="resume extraction from URL",
+        )
+    except Exception as e:
+        logger.warning("Failed to extract resume from page: %s", e)
+        click.echo(f"  Could not extract resume: {e}. Skipping.")
+        return None
+
+    if not resume_text or len(resume_text.strip()) < 50:
+        click.echo("  Could not find resume content on this page. Skipping.")
+        return None
+
+    resume_text = resume_text.strip()
+    click.echo(f"  Reference resume extracted: {len(resume_text.split())} words")
+    return resume_text
+
+
+def _search_company_context(jd_analysis) -> str:
+    """Search the web for company/role context to improve gap analysis.
+
+    Uses Brave Search MCP server. Returns empty string if BRAVE_API_KEY
+    is not set or search fails (entirely optional).
+    """
+    import os
+
+    if not os.environ.get("BRAVE_API_KEY"):
+        return ""
+
+    company = jd_analysis.company or ""
+    role = jd_analysis.job_title or ""
+    if not company and not role:
+        return ""
+
+    query = f"{company} {role} team tech stack responsibilities".strip()
+    click.echo("Searching web for company/role context...")
+    try:
+        from src.mcp_client import search_web
+
+        results = search_web(query, count=3)
+        if results:
+            click.echo("  Company context found.")
+            return results
+    except Exception as e:
+        logger.info("Web search skipped: %s", e)
+
+    return ""
+
+
 @click.command()
 @click.option(
     "--format",
@@ -399,28 +471,33 @@ def generate(
         else:
             ref_input = click.prompt(
                 "Do you have a reference resume from someone in a similar role? "
-                "(file path or Enter to skip)",
+                "(URL, file path, or Enter to skip)",
                 default="",
                 show_default=False,
             ).strip()
             if ref_input:
-                from src.resume_parser import read_resume_from_file
+                from src.mcp_client import is_url
 
-                try:
-                    reference_text = read_resume_from_file(ref_input)
-                    r_ref = _summarize_resume(reference_text)
-                    click.echo(
-                        f"  Reference resume loaded: {r_ref['word_count']} words"
-                    )
-                except (FileNotFoundError, ValueError) as e:
-                    logger.warning("Could not load reference resume: %s", e)
-                    click.echo(
-                        f"  Warning: Could not load reference resume ({e}). Skipping."
-                    )
+                if is_url(ref_input):
+                    reference_text = _fetch_reference_from_url(ref_input, model)
+                else:
+                    from src.resume_parser import read_resume_from_file
+
+                    try:
+                        reference_text = read_resume_from_file(ref_input)
+                        r_ref = _summarize_resume(reference_text)
+                        click.echo(
+                            f"  Reference resume loaded: {r_ref['word_count']} words"
+                        )
+                    except (FileNotFoundError, ValueError) as e:
+                        logger.warning("Could not load reference resume: %s", e)
+                        click.echo(
+                            f"  Warning: Could not load reference resume ({e}). Skipping."
+                        )
 
         # Step 5: JD Input
         click.echo("\n--- Step 5: Target Job Description ---")
-        jd_text = collect_jd_text()
+        jd_text = collect_jd_text(model=model)
 
         if not jd_text:
             click.echo("Error: No job description provided.")
@@ -471,6 +548,7 @@ def generate(
 
     # Gap analysis & follow-up questions
     user_additions = ""
+    web_context = ""
     saved_answers: dict | None = None
     if resume_session and session:
         saved_answers = session.get("answers")
@@ -504,6 +582,10 @@ def generate(
         else:
             # Run gap analysis and ask questions fresh
             click.echo("\n--- Step 7: Gap Analysis & Follow-Up Questions ---")
+
+            # Optional: web search for company/role context (requires BRAVE_API_KEY)
+            web_context = _search_company_context(jd_analysis)
+
             if dry_run:
                 click.echo("[DRY RUN] Loading mock gap analysis...")
                 gap_result = GapAnalysis.from_dict(
@@ -670,6 +752,8 @@ def generate(
             additions.append(f"Candidate wants to emphasize: {emphasis.strip()}")
         if job_title.strip():
             additions.append(f"Preferred job title for header: {job_title.strip()}")
+        if web_context:
+            additions.append(f"Company/role research:\n{web_context}")
 
         if additions:
             user_additions = "Additional Context from Candidate:\n" + "\n".join(

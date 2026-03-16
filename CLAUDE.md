@@ -41,6 +41,7 @@ resume-tailor/
 │   ├── web.py             # FastAPI REST API entry point
 │   ├── api.py             # Claude API call helpers with retry logic
 │   ├── llm_client.py      # Unified LLM client (Claude + Ollama)
+│   ├── mcp_client.py      # MCP client wrapper (fetch URLs, web search)
 │   ├── telemetry.py       # OpenTelemetry tracing & Prometheus metrics
 │   ├── config.py          # Centralized configuration constants
 │   ├── models.py          # Data models (dataclasses for all structured data)
@@ -113,6 +114,17 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - Use structured output (JSON) for parsed data
 - API calls: JD analysis, gap analysis, compatibility assessment, resume generation, resume review/improve, contact extraction
 - Each API call tracked with OpenTelemetry spans and Prometheus metrics via `src/telemetry.py`
+
+### MCP Integration (Model Context Protocol)
+- `src/mcp_client.py` wraps MCP client SDK for fetching URLs and web search
+- **Fetch server** (`mcp-server-fetch`): fetches web pages, converts HTML to markdown
+  - Used in Step 5 (JD from URL) and Step 4 (reference resume from URL)
+  - Spawned as child process via stdio transport — no separate server needed
+  - Falls back to manual paste if fetch fails (JS-rendered, auth-required pages)
+- **Brave Search server** (optional, needs `BRAVE_API_KEY`):
+  - Used in Step 7 for company/role context research
+  - Silently skipped if no API key is set
+  - Free tier: 2,000 queries/month at https://brave.com/search/api/
 
 ### REST API (FastAPI)
 - Entry point: `src/web.py`, run with `make api` or `uvicorn src.web:app`
