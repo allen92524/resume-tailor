@@ -59,11 +59,15 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - If no → proceed with existing baseline
 
 ### Step 4: Reference Resume (Optional)
-- Ask: "Do you have a reference resume from someone in a similar role? (file path or Enter to skip)"
-- If provided → parse and hold for later analysis
+- Ask: "Do you have a reference resume from someone in a similar role? (URL, file path, or Enter to skip)"
+- If URL provided → fetch via MCP fetch server, extract resume content with LLM
+- If file path → parse directly
+- Hold reference text for later analysis
 
 ### Step 5: JD Input
-- Ask user to paste or provide file path to target job description
+- Ask user to provide URL, file path, or paste text
+- If URL detected → fetch via MCP fetch server, extract JD with LLM, show preview for confirmation
+- If fetch fails (JS-rendered, auth-required) → fall back to manual paste
 - Show word count and detected role, ask to confirm
 
 ### Step 6: JD Analysis
@@ -71,6 +75,10 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - Extract: role, company, required skills, preferred skills, keywords, responsibilities
 
 ### Step 7: Gap Analysis & Follow-Up Questions
+- **Optional web search** (requires `BRAVE_API_KEY`):
+  - Search for company + role context via MCP Brave Search server
+  - Results included in `user_additions` to improve compatibility assessment and generation
+  - Silently skipped if no API key is set
 - Compare resume against JD analysis
 - Show strengths (what already matches)
 - **Semantic experience bank matching** (1 batch LLM call):

@@ -133,3 +133,13 @@ CONFLICT_CHECK_USER = _cc[1]
 _ebm = _load("experience_bank_match.md")
 EXPERIENCE_BANK_MATCH_SYSTEM = _ebm[0]
 EXPERIENCE_BANK_MATCH_USER = _ebm[1]
+
+# Extract JD from web page
+_ej = _load("extract_jd.md")
+EXTRACT_JD_SYSTEM = _ej[0]
+EXTRACT_JD_USER = _ej[1]
+
+# Extract resume from web page
+_er = _load("extract_resume.md")
+EXTRACT_RESUME_SYSTEM = _er[0]
+EXTRACT_RESUME_USER = _er[1]
