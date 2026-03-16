@@ -349,14 +349,27 @@ class Profile:
     original_resume: str = ""
     writing_preferences: dict[str, str] = field(default_factory=dict)
     applications_since_review: int = 0
+    # Structured work history: {"Company | Title | Dates": {"topic": "answer"}}
+    work_history: dict[str, dict[str, str]] = field(default_factory=dict)
+    # Immutable facts extracted from resume
+    education: list[dict] = field(default_factory=list)
+    certifications: list[str] = field(default_factory=list)
+    # Legacy flat experience bank — kept for backward compatibility during migration
     experience_bank: dict[str, str] = field(default_factory=dict)
+    # Schema version: 1 = flat experience_bank, 2 = structured work_history
+    schema_version: int = 1
     history: list[dict] = field(default_factory=list)
     preferences: dict = field(default_factory=dict)
     created_at: str | None = None
     updated_at: str | None = None
 
+    @property
+    def needs_migration(self) -> bool:
+        """True if profile has old flat experience_bank that needs migration."""
+        return self.schema_version < 2 and bool(self.experience_bank)
+
     @classmethod
-    def from_dict(cls, data: dict) -> Profile:
+    def from_dict(cls, data: dict) -> "Profile":
         identity = Identity.from_dict(data.get("identity", {}))
         return cls(
             identity=identity,
@@ -364,7 +377,11 @@ class Profile:
             original_resume=data.get("original_resume", ""),
             writing_preferences=data.get("writing_preferences", {}),
             applications_since_review=data.get("applications_since_review", 0),
+            work_history=data.get("work_history", {}),
+            education=data.get("education", []),
+            certifications=data.get("certifications", []),
             experience_bank=data.get("experience_bank", {}),
+            schema_version=data.get("schema_version", 1),
             history=data.get("history", []),
             preferences=data.get("preferences", {}),
             created_at=data.get("created_at"),
@@ -378,7 +395,11 @@ class Profile:
             "original_resume": self.original_resume,
             "writing_preferences": self.writing_preferences,
             "applications_since_review": self.applications_since_review,
+            "work_history": self.work_history,
+            "education": self.education,
+            "certifications": self.certifications,
             "experience_bank": self.experience_bank,
+            "schema_version": self.schema_version,
             "history": self.history,
             "preferences": self.preferences,
             "created_at": self.created_at,
