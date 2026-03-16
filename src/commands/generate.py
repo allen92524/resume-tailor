@@ -274,6 +274,12 @@ def generate(
             prof.preferences["model"] = model
             save_profile(prof, pname)
 
+    # Migrate profile if needed (flat experience_bank → structured work_history)
+    if not dry_run and prof.needs_migration:
+        from src.profile import migrate_profile
+
+        migrate_profile(prof, pname, model=model)
+
     # Apply saved preferences as defaults (flags override)
     prefs = get_preferences(prof)
     if output_format is None:
