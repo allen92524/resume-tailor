@@ -191,12 +191,23 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
         return None
 
     jd_text = jd_text.strip()
+    word_count = len(jd_text.split())
 
     # Detect if the LLM returned an error/apology instead of a real JD
     if _looks_like_extraction_failure(jd_text):
         click.echo(
             "This page doesn't contain an accessible job description "
             "(the site may block automated access).\n"
+            "Please paste the job description manually instead."
+        )
+        return None
+
+    # A real JD is almost always 200+ words. Under 150 is likely
+    # an error message, "no open positions", or partial content.
+    if word_count < 150:
+        click.echo(
+            f"Extracted text is too short ({word_count} words) to be a full job description.\n"
+            "The page may not contain the posting. "
             "Please paste the job description manually instead."
         )
         return None
@@ -223,16 +234,22 @@ def _looks_like_extraction_failure(text: str) -> bool:
         "unable to extract",
         "no job description found",
         "no job posting",
+        "no job description to extract",
+        "no open positions",
+        "currently no open",
+        "position is not available",
         "robots.txt",
         "access is not permitted",
         "could not find",
         "failed to load",
         "failed to be simplified",
         "content is not available",
+        "not available on this page",
         "visit the page directly",
         "visit the url",
         "copy the job description",
         "copy and paste",
+        "there is no job description",
     ]
     matches = sum(1 for signal in failure_signals if signal in lower)
     # If 2+ failure signals found, it's likely an error, not a JD
