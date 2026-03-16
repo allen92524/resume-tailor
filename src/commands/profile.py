@@ -62,12 +62,28 @@ def profile_view(ctx):
         for key, value in prof.writing_preferences.items():
             click.echo(f"    - {key}: {value}")
 
-    # Experience bank
-    if prof.experience_bank:
-        click.echo(f"\n  Experience bank: {len(prof.experience_bank)} saved answers")
-        for skill, answer in prof.experience_bank.items():
-            preview = answer[:60] + "..." if len(answer) > 60 else answer
-            click.echo(f"    - {skill}: {preview}")
+    # Education
+    if prof.education:
+        click.echo("\n  Education:")
+        for edu in prof.education:
+            click.echo(f"    - {edu.get('degree', '')} — {edu.get('school', '')} ({edu.get('year', '')})")
+
+    # Certifications
+    if prof.certifications:
+        click.echo(f"\n  Certifications: {', '.join(prof.certifications)}")
+
+    # Work history / experience bank
+    from src.profile import get_experience_by_role
+
+    by_role = get_experience_by_role(prof)
+    if by_role:
+        total = sum(len(e) for e in by_role.values())
+        click.echo(f"\n  Work history: {total} entries across {len(by_role)} roles")
+        for role, entries in by_role.items():
+            click.echo(f"    [{role}]")
+            for skill, answer in entries.items():
+                preview = answer[:60] + "..." if len(answer) > 60 else answer
+                click.echo(f"      - {skill}: {preview}")
 
     # History
     if prof.history:
@@ -139,9 +155,11 @@ def profile_reset(ctx):
         click.echo("No profile found. Nothing to reset.")
         return
 
+    from src.profile import get_all_experience
+
     name = prof.identity.name or "Unknown"
     history_count = len(prof.history)
-    bank_count = len(prof.experience_bank)
+    bank_count = len(get_all_experience(prof))
 
     click.echo(f"\nThis will delete your profile for {name}.")
     click.echo(f"  {bank_count} saved experience answers will be lost.")
@@ -234,7 +252,9 @@ def _check_and_resolve_conflicts(prof, pname: str) -> None:
     from src.commands.common import select_model_interactive, validate_api_key
     from src.profile import check_conflicts, resolve_conflicts
 
-    if not prof.base_resume or not prof.experience_bank:
+    from src.profile import get_all_experience
+
+    if not prof.base_resume or not get_all_experience(prof):
         return
 
     click.echo("\nChecking for contradictions...")
@@ -361,48 +381,52 @@ def _edit_contact_interactive(prof, pname: str) -> None:
 
 
 def _edit_experience_bank_interactive(prof, pname: str) -> None:
-    """Review experience bank entries via Q&A — user confirms or corrects each one.
+    """Review work history entries via Q&A — user confirms or corrects each one.
 
-    Users never directly edit the experience bank text. Instead, each entry
-    is shown and the user confirms it's correct or uses conversational Q&A
-    to provide an updated answer. This prevents unpredictable edits.
+    Users never directly edit the text. Instead, each entry is shown
+    grouped by role, and the user confirms it's correct or uses
+    conversational Q&A to provide an updated answer.
     """
     from src.conversation import conversational_qa
+    from src.profile import get_experience_by_role, save_experience
 
-    if not prof.experience_bank:
-        click.echo("No experience bank entries yet. Run `generate` to build one.")
+    by_role = get_experience_by_role(prof)
+    if not by_role:
+        click.echo("No saved answers yet. Run `generate` to build your work history.")
         return
 
+    total = sum(len(e) for e in by_role.values())
     click.echo(
-        f"\nReviewing {len(prof.experience_bank)} saved answers. "
+        f"\nReviewing {total} saved answers across {len(by_role)} roles. "
         "Confirm each one or correct it.\n"
     )
 
     changed = False
-    for skill, answer in list(prof.experience_bank.items()):
-        click.echo(f"\n  {skill}:")
-        click.echo(f"    {answer}")
-        if not click.confirm("    Is this still correct?", default=True):
-            updated = conversational_qa(
-                context_type="experience review",
-                context_description=(
-                    f"Reviewing saved answer for '{skill}'. "
-                    f'Previous answer: "{answer}"'
-                ),
-                initial_question=(
-                    f"What would you like to change about your "
-                    f"answer for '{skill}'?"
-                ),
-                model="claude",
-            )
-            if updated:
-                prof.experience_bank[skill] = updated
-                changed = True
-                click.echo("    Updated.")
+    for role, entries in by_role.items():
+        click.echo(click.style(f"\n  [{role}]", bold=True))
+        for skill, answer in list(entries.items()):
+            click.echo(f"\n    {skill}:")
+            click.echo(f"      {answer}")
+            if not click.confirm("      Is this still correct?", default=True):
+                updated = conversational_qa(
+                    context_type="experience review",
+                    context_description=(
+                        f"Reviewing saved answer for '{skill}' "
+                        f"at '{role}'. Previous answer: \"{answer}\""
+                    ),
+                    initial_question=(
+                        f"What would you like to change about your "
+                        f"answer for '{skill}'?"
+                    ),
+                    model="claude",
+                )
+                if updated:
+                    save_experience(prof, skill, updated, pname, role_key=role)
+                    changed = True
+                    click.echo("      Updated.")
 
     if changed:
-        save_profile(prof, pname)
-        click.echo("\nExperience bank updated.")
+        click.echo("\nWork history updated.")
         _check_and_resolve_conflicts(prof, pname)
     else:
         click.echo("\nNo changes made.")
