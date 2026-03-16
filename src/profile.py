@@ -21,13 +21,22 @@ from .api import parse_json_response
 from .config import (
     DEFAULT_MODEL,
     MAX_TOKENS_CONTACT_EXTRACTION,
+    MAX_TOKENS_CONFLICT_CHECK,
+    MAX_TOKENS_EXPERIENCE_MATCH,
     DEFAULT_PROFILE,
     get_profile_dir,
     get_profile_path,
 )
 from .llm_client import call_llm
 from .models import Profile, Identity, ResumeReview, EnrichmentAnalysis
-from .prompts import CONTACT_EXTRACTION_SYSTEM, CONTACT_EXTRACTION_USER
+from .prompts import (
+    CONTACT_EXTRACTION_SYSTEM,
+    CONTACT_EXTRACTION_USER,
+    CONFLICT_CHECK_SYSTEM,
+    CONFLICT_CHECK_USER,
+    EXPERIENCE_BANK_MATCH_SYSTEM,
+    EXPERIENCE_BANK_MATCH_USER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -502,6 +511,131 @@ def lookup_experience(profile: Profile, skill: str) -> str | None:
         if key.lower() == skill_lower:
             return value
     return None
+
+
+def lookup_experience_semantic(
+    profile: Profile,
+    gap_skills: list[str],
+    model: str = DEFAULT_MODEL,
+) -> dict[str, list[tuple[str, str]]]:
+    """Match gap skills to experience bank entries using LLM semantic matching.
+
+    Sends all gap skills + experience bank in ONE batch call.
+    Returns a dict mapping gap skill -> list of (key, answer) tuples.
+    Falls back to exact matching if LLM call fails.
+    """
+    if not profile.experience_bank or not gap_skills:
+        return {skill: [] for skill in gap_skills}
+
+    # Format experience bank for the prompt
+    eb_text = "\n".join(
+        f"- {key}: {answer[:200]}" for key, answer in profile.experience_bank.items()
+    )
+    skills_text = "\n".join(f"- {skill}" for skill in gap_skills)
+
+    try:
+        raw = call_llm(
+            model=model,
+            max_tokens=MAX_TOKENS_EXPERIENCE_MATCH,
+            system=EXPERIENCE_BANK_MATCH_SYSTEM,
+            user_content=EXPERIENCE_BANK_MATCH_USER.format(
+                gap_skills=skills_text,
+                experience_bank=eb_text,
+            ),
+            purpose="experience bank matching",
+        )
+        data = parse_json_response(raw)
+        matches_raw = data.get("matches", {})
+
+        # Convert to (key, answer) tuples
+        result: dict[str, list[tuple[str, str]]] = {}
+        for skill in gap_skills:
+            matched_keys = matches_raw.get(skill, [])
+            result[skill] = [
+                (k, profile.experience_bank[k])
+                for k in matched_keys
+                if k in profile.experience_bank
+            ]
+        return result
+    except Exception:
+        logger.warning("Semantic matching failed, falling back to exact match")
+        # Fallback: exact case-insensitive matching
+        result = {}
+        for skill in gap_skills:
+            exact = lookup_experience(profile, skill)
+            result[skill] = [(skill, exact)] if exact else []
+        return result
+
+
+def check_conflicts(
+    profile: Profile,
+    model: str = DEFAULT_MODEL,
+) -> list[dict[str, str]]:
+    """Check for contradictions between resume and experience bank.
+
+    Returns a list of conflict dicts with 'description', 'source_a',
+    'source_b', and 'question' keys. Empty list if no conflicts.
+    """
+    if not profile.base_resume or not profile.experience_bank:
+        return []
+
+    eb_text = "\n".join(
+        f"- {key}: {answer}" for key, answer in profile.experience_bank.items()
+    )
+
+    try:
+        raw = call_llm(
+            model=model,
+            max_tokens=MAX_TOKENS_CONFLICT_CHECK,
+            system=CONFLICT_CHECK_SYSTEM,
+            user_content=CONFLICT_CHECK_USER.format(
+                resume_text=profile.base_resume,
+                experience_bank=eb_text,
+            ),
+            purpose="conflict check",
+        )
+        data = parse_json_response(raw)
+        return data.get("conflicts", [])
+    except Exception:
+        logger.warning("Conflict check failed, skipping")
+        return []
+
+
+def resolve_conflicts(
+    profile: Profile,
+    conflicts: list[dict[str, str]],
+    profile_name: str = DEFAULT_PROFILE,
+) -> None:
+    """Walk through conflicts interactively and let the user resolve each one.
+
+    Updates the experience bank with corrected answers.
+    """
+    if not conflicts:
+        return
+
+    click.echo(
+        click.style(
+            f"\nFound {len(conflicts)} potential conflict(s) in your profile:",
+            fg="yellow",
+            bold=True,
+        )
+    )
+
+    for i, conflict in enumerate(conflicts, 1):
+        click.echo(f"\n  Conflict {i}:")
+        click.echo(f"    A: {conflict.get('source_a', '?')}")
+        click.echo(f"    B: {conflict.get('source_b', '?')}")
+        answer = click.prompt(
+            f"    {conflict.get('question', 'Which is correct?')}",
+            default="",
+            show_default=False,
+        ).strip()
+        if answer:
+            # Save the correction to experience bank under the conflict description
+            key = f"clarification: {conflict.get('description', f'conflict_{i}')}"
+            save_experience(profile, key, answer, profile_name)
+
+    click.echo(click.style("  Conflicts resolved.", fg="green"))
 
 
 def append_history(

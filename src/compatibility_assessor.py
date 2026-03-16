@@ -15,21 +15,32 @@ logger = logging.getLogger(__name__)
 
 
 def assess_compatibility(
-    resume_text: str, jd_analysis: JDAnalysis, model: str = DEFAULT_MODEL
+    resume_text: str,
+    jd_analysis: JDAnalysis,
+    model: str = DEFAULT_MODEL,
+    user_additions: str = "",
 ) -> CompatibilityAssessment:
     """Score how well a resume matches a JD analysis.
+
+    Takes the resume, JD analysis, and optional additional context from
+    gap analysis Q&A so the score reflects what the candidate told us.
 
     Returns a CompatibilityAssessment with match_score, strong_matches,
     addressable_gaps, missing, recommendation, and proceed (bool).
     """
     logger.info("Assessing resume-JD compatibility")
 
+    # Append gap answers to resume text so the LLM sees the full picture
+    full_context = resume_text
+    if user_additions:
+        full_context += f"\n\n{user_additions}"
+
     response_text = call_llm(
         model=model,
         max_tokens=MAX_TOKENS_COMPATIBILITY,
         system=COMPATIBILITY_ASSESSMENT_SYSTEM,
         user_content=COMPATIBILITY_ASSESSMENT_USER.format(
-            resume_text=resume_text,
+            resume_text=full_context,
             jd_analysis=json.dumps(jd_analysis.to_dict(), indent=2),
         ),
         purpose="compatibility assessment",

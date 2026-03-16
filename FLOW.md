@@ -34,12 +34,14 @@ Code must match this flow exactly. Update this file BEFORE changing code.
   - Extract contact info via LLM
   - Save profile
 
-### Step 2b: Periodic Maintenance (returning users)
+### Step 2b: Periodic Experience Bank Review (returning users)
 - If `applications_since_review >= 10`:
-  - Ask: "Want to refresh your baseline resume?"
-  - If yes → run enrichment flow: detect profession, ask targeted questions, improve with real answers
-  - Save answers to experience bank, reset counter
-  - Also offer experience bank review: keep, update, or delete each saved answer
+  - Offer experience bank review: keep, update, or delete each saved answer
+  - If user made any edits → run conflict check (1 LLM call) to detect contradictions
+  - If conflicts found → walk user through each one with clarifying questions
+  - Reset counter
+- Note: Baseline resume refresh is handled by Step 3b ("anything new?"), not here.
+  This avoids redundant re-enrichment of an already-improved resume.
 
 ### Step 3: Resume Input
 - If profile has a base resume → use it, show "Using profile resume for {name}" with a tip to run `profile` command
@@ -50,6 +52,8 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 ### Step 3b: Returning User Check
 - If profile exists, ask: "Anything new since your last application? New skills, projects, certifications?"
 - If yes → update `base_resume` via LLM, save new info to experience bank
+- After save → run conflict check (1 LLM call) to detect contradictions
+- If conflicts found → walk user through each one with clarifying questions
 - If no → proceed with existing baseline
 
 ### Step 4: Reference Resume (Optional)
@@ -67,22 +71,39 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 ### Step 7: Gap Analysis & Follow-Up Questions
 - Compare resume against JD analysis
 - Show strengths (what already matches)
-- Ask smart questions about gaps — ordered by importance to the JD
-- Question style: simple, concrete with profession-appropriate examples
-- Build on what user already answered during onboarding and experience bank — don't re-ask
-- Check experience bank for saved answers, reuse with option to update
-- Smart follow-up on "No" answers: suggest adjacent skills (e.g. "Even related experience counts. For example: Docker, ECS/Fargate, container orchestration. Have you done anything like that?")
-- If user still says no → save "No" and move on
-- If user gives a partial answer → save it
+- **Semantic experience bank matching** (1 batch LLM call):
+  - Send all gap skills + experience bank to LLM in ONE call
+  - LLM returns which experience bank entries are relevant to each gap
+  - Matches by meaning, not just exact name (e.g. "AI coding tools" matches "GitHub Copilot experience")
+  - Falls back to exact matching if LLM call fails
+- For each gap with a matching experience bank entry:
+  - Show saved answer, offer to reuse, update, or skip
+- For gaps with no match:
+  - Ask smart questions — ordered by importance to the JD
+  - Question style: simple, concrete with profession-appropriate examples
+  - Smart follow-up on "No" answers: suggest adjacent skills
 - Save new answers to experience bank
+- After all new answers saved → run conflict check (1 LLM call)
+- If conflicts found → walk user through each one with clarifying questions
 - Also ask generic questions: additional skills, what to emphasize, preferred title
 
 ### Step 8: Compatibility Assessment
-- Score 0-100% match
+- Score 0-100% match using resume + JD analysis + gap answers
+- Gap answers are included so the score reflects what the user told us
+  (without this, skills like "AI coding tools" appear as "Missing" even
+  after the user confirmed having experience)
 - Show: strong matches, addressable gaps, missing items
 - Recommendation on whether to proceed
 - If score < 30% → warn user
 - Ask: "Proceed with generation? (y/n)"
+
+### Step 8b: Writing Preferences (first run only)
+- If no writing preferences saved in profile → ask upfront:
+  - Preferred tone (professional, conversational, technical)
+  - Bullet style (concise, detailed, quantified)
+  - Any other preferences
+- Save to profile — only asked once, reused for all future generations
+- If preferences already exist → skip this step
 
 ### Step 9: Generate Tailored Resume
 - Send resume + JD analysis + gap answers + reference insights + writing preferences to LLM
@@ -91,11 +112,10 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - Ask user to fill in each placeholder with context shown
 - Strip % from user input to avoid double %%
 
-### Step 9b: Section-by-Section Review
+### Step 9b: Preview Generated Resume
 - Show generated resume section by section (summary, experience, skills)
-- For each section ask: "Looks good? (Enter to accept, or type feedback)"
-- Capture writing style preferences from feedback (e.g. "too formal", "shorter bullets")
-- Save writing preferences to profile for all future generations
+- Read-only preview — no feedback loop
+- Writing preferences are already applied from Step 8b
 
 ### Step 10: Output
 - Build DOCX with professional formatting
@@ -139,7 +159,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - `profile update` — interactively update identity fields
 - `profile reset` — delete profile and start over
 - `profile reset-baseline` — revert base_resume back to original_resume
-- `profile edit` — open profile.json in editor
+- `profile edit` — interactive editor (resume, contact info, or raw JSON)
 - `profile export` — export as markdown
 - `profile backup` — create timestamped backup
 - `profile restore` — restore from backup
