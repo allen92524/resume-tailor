@@ -576,6 +576,8 @@ def check_conflicts(
     Returns a list of conflict dicts with 'description', 'source_a',
     'source_b', and 'question' keys. Empty list if no conflicts.
     """
+    from datetime import date
+
     if not profile.base_resume or not profile.experience_bank:
         return []
 
@@ -591,6 +593,7 @@ def check_conflicts(
             user_content=CONFLICT_CHECK_USER.format(
                 resume_text=profile.base_resume,
                 experience_bank=eb_text,
+                today=date.today().strftime("%B %d, %Y"),
             ),
             purpose="conflict check",
         )
@@ -611,7 +614,8 @@ def resolve_conflicts(
 
     Uses the same follow-up engine as gap analysis so the LLM can ask
     clarifying questions if the user's answer is unclear or incomplete.
-    Updates the experience bank with corrected answers.
+    Updates the experience bank entries in place and applies corrections
+    to the resume text when needed.
     """
     from .conversation import conversational_qa
 
@@ -626,11 +630,15 @@ def resolve_conflicts(
         )
     )
 
+    resume_corrections: list[dict[str, str]] = []
+
     for i, conflict in enumerate(conflicts, 1):
         description = conflict.get("description", f"conflict_{i}")
         source_a = conflict.get("source_a", "?")
         source_b = conflict.get("source_b", "?")
         question = conflict.get("question", "Which is correct?")
+        eb_keys = conflict.get("experience_bank_keys", [])
+        involves_resume = conflict.get("involves_resume", False)
 
         click.echo(f"\n  Conflict {i}:")
         click.echo(f"    A: {source_a}")
@@ -643,11 +651,68 @@ def resolve_conflicts(
             initial_question=question,
             model=model,
         )
-        if answer:
-            key = f"clarification: {description}"
-            save_experience(profile, key, answer, profile_name)
+        if not answer:
+            continue
+
+        # Update the conflicting experience bank entries in place
+        for key in eb_keys:
+            if key in profile.experience_bank:
+                profile.experience_bank[key] = answer
+        # If no specific keys were identified, save under the description
+        if not eb_keys:
+            profile.experience_bank[f"clarification: {description}"] = answer
+
+        if involves_resume:
+            resume_corrections.append(
+                {"description": description, "correction": answer}
+            )
+
+    save_profile(profile, profile_name)
+
+    # Apply corrections to resume text if needed
+    if resume_corrections and profile.base_resume:
+        _apply_resume_corrections(profile, resume_corrections, profile_name, model)
 
     click.echo(click.style("  Conflicts resolved.", fg="green"))
+
+
+def _apply_resume_corrections(
+    profile: Profile,
+    corrections: list[dict[str, str]],
+    profile_name: str,
+    model: str,
+) -> None:
+    """Apply factual corrections from conflict resolution to the resume."""
+    corrections_text = "\n".join(
+        f"- {c['description']}: {c['correction']}" for c in corrections
+    )
+
+    click.echo("\nUpdating resume with corrected facts...")
+    try:
+        updated = call_llm(
+            model=model,
+            max_tokens=4096,
+            system=(
+                "You are a resume editor. Apply the factual corrections below to the "
+                "resume. ONLY change the specific facts mentioned — do not rewrite, "
+                "reformat, or improve anything else. Return the full updated resume text."
+            ),
+            user_content=(
+                f"**Resume:**\n{profile.base_resume}\n\n"
+                f"**Corrections to apply:**\n{corrections_text}\n\n"
+                "Return the updated resume with ONLY these corrections applied."
+            ),
+            purpose="resume correction",
+        )
+        if updated and updated.strip():
+            profile.base_resume = updated.strip()
+            save_profile(profile, profile_name)
+            click.echo(
+                click.style("  Resume updated with corrected facts.", fg="green")
+            )
+    except Exception:
+        logger.warning("Failed to apply resume corrections, skipping")
+        click.echo("  Could not auto-update resume. You can edit it manually.")
 
 
 def append_history(
