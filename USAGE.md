@@ -35,9 +35,9 @@ The tool walks you through everything:
 
 1. Creates a profile — enter your name, email, phone
 2. Paste your resume (or give a file path to a `.txt`, `.docx`, or `.pdf`)
-3. Optionally provide a reference resume from someone in a similar role
+3. Optionally provide a reference resume from someone in a similar role (file path or URL)
 4. AI reviews your resume and suggests improvements
-5. Paste the job description (or give a file path)
+5. Provide the job description — paste a URL, file path, or the text directly
 6. Answer a few questions about gaps between your resume and the job
 7. See a compatibility score (0-100%)
 8. Get your tailored resume in the `output/` folder

@@ -14,6 +14,7 @@ You have one resume. Every job is different. Resume Tailor reads the job descrip
 - **An AI backend** (pick one):
   - **Claude API** (best quality, ~$0.01-0.05 per resume) — [get an API key](https://console.anthropic.com/settings/keys)
   - **Ollama** (free, runs on your computer) — [install here](https://ollama.com/download)
+- **Optional:** Brave Search API key for company research — [free tier, 2,000 searches/month](https://brave.com/search/api/)
 
 ## Quick Start (Docker — easiest)
 
@@ -68,6 +69,7 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 export ANTHROPIC_API_KEY="sk-ant-your-key-here"   # if using Claude
+export BRAVE_API_KEY="your-brave-key"              # optional: enables company research
 python src/main.py generate
 ```
 
@@ -91,11 +93,14 @@ Paste your resume below (or enter a file path like ~/Downloads/resume.pdf).
 Type END on its own line when done.
 
 --- Step 4: Target Job Description ---
-Paste the job description (or enter a file path).
+Paste a URL, file path, or the job description text.
 
+https://jobs.example.com/senior-platform-engineer
+  Fetching job posting from URL...
+  Extracted job description (350 words):
   Role:     Senior Platform Engineer
   Company:  Dataflow Inc.
-Is this correct? [Y/n]: y
+Use this job description? [Y/n]: y
 
 --- Step 6: Gap Analysis ---
 Your resume already matches well on:
@@ -119,6 +124,7 @@ Done! Your tailored resume has been saved to:
 ## Features
 
 - **Just answer questions** — the AI does the writing, you provide the facts
+- **Paste a URL** — just paste the job posting link, no need to copy-paste the text
 - **Remembers everything** — save your resume once, reuse it for every application
 - **Smart questions** — only asks about gaps between your resume and the job posting
 - **Match score** — see a 0-100% compatibility score before generating
@@ -256,7 +262,7 @@ docker compose run --rm resume-tailor profile reset-baseline
 python src/main.py profile reset
 docker compose run --rm resume-tailor profile reset
 
-# Advanced: edit the raw profile JSON in a text editor (nano/vi)
+# Edit your profile (interactive menu: resume, contact info, or raw JSON)
 python src/main.py profile edit
 docker compose run --rm resume-tailor profile edit
 ```
