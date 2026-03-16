@@ -15,6 +15,11 @@ from mcp.client.stdio import stdio_client
 
 logger = logging.getLogger(__name__)
 
+# Suppress noisy MCP JSONRPC parse errors — these fire when the server process
+# (e.g. uvx/npx) writes non-JSONRPC output to stdout (npm install messages, etc.)
+# They are harmless but scary-looking to users.
+logging.getLogger("mcp.client.stdio").setLevel(logging.CRITICAL)
+
 
 def _find_command(name: str) -> str | None:
     """Find an executable command, checking uvx, npx, and direct paths."""

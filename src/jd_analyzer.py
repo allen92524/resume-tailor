@@ -144,12 +144,33 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
         click.echo("Please paste the job description manually instead.")
         return None
 
-    if not page_content or len(page_content.strip()) < 100:
+    if not page_content or len(page_content.strip()) < 200:
         click.echo(
             "The page returned very little content (may require JavaScript). "
             "Please paste the job description manually instead."
         )
         return None
+
+    # Check if the fetched content itself indicates a failure
+    content_lower = page_content.lower()
+    if any(
+        signal in content_lower
+        for signal in ["page failed to be simplified", "failed to fetch", "access denied"]
+    ):
+        click.echo(
+            "The page could not be read properly (the site may block automated access).\n"
+            "Please paste the job description manually instead."
+        )
+        return None
+
+    # Truncate very large pages to avoid wasting tokens on navigation/scripts.
+    # Most job descriptions are under 20K chars of meaningful content.
+    max_content = 30000
+    if len(page_content) > max_content:
+        logger.info(
+            "Page content truncated from %d to %d chars", len(page_content), max_content
+        )
+        page_content = page_content[:max_content]
 
     click.echo(f"Page fetched ({len(page_content)} chars). Extracting job description...")
     try:
@@ -170,8 +191,28 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
         return None
 
     jd_text = jd_text.strip()
+    word_count = len(jd_text.split())
+
+    # Detect if the LLM returned an error/apology instead of a real JD
+    if _looks_like_extraction_failure(jd_text):
+        click.echo(
+            "This page doesn't contain an accessible job description "
+            "(the site may block automated access).\n"
+            "Please paste the job description manually instead."
+        )
+        return None
+
+    # A real JD is almost always 200+ words. Under 150 is likely
+    # an error message, "no open positions", or partial content.
+    if word_count < 150:
+        click.echo(
+            f"Extracted text is too short ({word_count} words) to be a full job description.\n"
+            "The page may not contain the posting. "
+            "Please paste the job description manually instead."
+        )
+        return None
+
     click.echo(f"\nExtracted job description ({len(jd_text.split())} words):")
-    # Show preview
     preview = jd_text[:500] + ("..." if len(jd_text) > 500 else "")
     click.echo(preview)
 
@@ -180,3 +221,36 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
 
     click.echo("Discarded. Please paste the job description manually.")
     return None
+
+
+def _looks_like_extraction_failure(text: str) -> bool:
+    """Detect if LLM returned an error message instead of an actual JD."""
+    lower = text.lower()
+    failure_signals = [
+        "i apologize",
+        "i'm unable to",
+        "i cannot access",
+        "i cannot extract",
+        "unable to extract",
+        "no job description found",
+        "no job posting",
+        "no job description to extract",
+        "no open positions",
+        "currently no open",
+        "position is not available",
+        "robots.txt",
+        "access is not permitted",
+        "could not find",
+        "failed to load",
+        "failed to be simplified",
+        "content is not available",
+        "not available on this page",
+        "visit the page directly",
+        "visit the url",
+        "copy the job description",
+        "copy and paste",
+        "there is no job description",
+    ]
+    matches = sum(1 for signal in failure_signals if signal in lower)
+    # If 2+ failure signals found, it's likely an error, not a JD
+    return matches >= 2
