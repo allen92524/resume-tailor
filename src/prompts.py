@@ -158,3 +158,8 @@ MIGRATE_EXTRACT_FACTS_USER = _mef[1]
 _mge = _load("migrate_group_experience.md")
 MIGRATE_GROUP_EXPERIENCE_SYSTEM = _mge[0]
 MIGRATE_GROUP_EXPERIENCE_USER = _mge[1]
+
+# Unified analysis (replaces separate gap analysis + experience matching + synthesis)
+_ua = _load("unified_analysis.md")
+UNIFIED_ANALYSIS_SYSTEM = _ua[0]
+UNIFIED_ANALYSIS_USER = _ua[1]
