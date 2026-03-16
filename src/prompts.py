@@ -143,3 +143,8 @@ EXTRACT_JD_USER = _ej[1]
 _er = _load("extract_resume.md")
 EXTRACT_RESUME_SYSTEM = _er[0]
 EXTRACT_RESUME_USER = _er[1]
+
+# Experience synthesis (combine related entries for a gap skill)
+_es = _load("experience_synthesize.md")
+EXPERIENCE_SYNTHESIZE_SYSTEM = _es[0]
+EXPERIENCE_SYNTHESIZE_USER = _es[1]

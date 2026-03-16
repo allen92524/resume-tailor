@@ -96,6 +96,45 @@ def _fetch_reference_from_url(url: str, model: str) -> str | None:
     return resume_text
 
 
+def _synthesize_experience(
+    skill: str,
+    question: str,
+    matched_entries: list[tuple[str, str]],
+    model: str,
+) -> tuple[str, list[dict]] | None:
+    """Use LLM to synthesize matched experience bank entries into a coherent answer.
+
+    Returns (synthesized_answer, conflicts_list) or None if synthesis fails.
+    """
+    from src.api import parse_json_response
+    from src.llm_client import call_llm
+    from src.prompts import EXPERIENCE_SYNTHESIZE_SYSTEM, EXPERIENCE_SYNTHESIZE_USER
+
+    entries_text = "\n".join(f"- {k}: {v}" for k, v in matched_entries)
+
+    try:
+        raw = call_llm(
+            model=model,
+            max_tokens=2048,
+            system=EXPERIENCE_SYNTHESIZE_SYSTEM,
+            user_content=EXPERIENCE_SYNTHESIZE_USER.format(
+                skill=skill,
+                question=question,
+                entries=entries_text,
+            ),
+            purpose="experience synthesis",
+        )
+        data = parse_json_response(raw)
+        synthesized = data.get("synthesized_answer", "")
+        conflicts = data.get("conflicts", [])
+        if synthesized:
+            return synthesized, conflicts
+    except Exception as e:
+        logger.warning("Experience synthesis failed: %s", e)
+
+    return None
+
+
 def _search_company_context(jd_analysis) -> str:
     """Search the web for company/role context to improve gap analysis.
 
@@ -256,50 +295,43 @@ def generate(
             )
         )
         if click.confirm("Review your saved answers?", default=False):
-            keys_to_delete: list[str] = []
+            click.echo(
+                f"\nYou have {len(prof.experience_bank)} saved answers. "
+                "I'll summarize each one — just confirm or correct.\n"
+            )
             for skill, answer in list(prof.experience_bank.items()):
-                preview = answer[:80] + "..." if len(answer) > 80 else answer
-                click.echo(f"\n  {skill}: {preview}")
-                action = (
-                    click.prompt(
-                        "    [Enter] Keep  |  [u] Update  |  [d] Delete",
-                        default="",
-                        show_default=False,
-                    )
-                    .strip()
-                    .lower()
-                )
-                if action == "d":
-                    keys_to_delete.append(skill)
-                    click.echo("    Deleted.")
-                elif action == "u":
-                    new_answer = click.prompt(
-                        "    New answer",
-                        default="",
-                        show_default=False,
-                    ).strip()
-                    if new_answer:
-                        prof.experience_bank[skill] = new_answer
-                        click.echo("    Updated.")
-                        eb_changed = True
-            for key in keys_to_delete:
-                del prof.experience_bank[key]
-                eb_changed = True
-            if eb_changed:
-                prof.applications_since_review = 0
-                save_profile(prof, pname)
-                click.echo("Experience bank updated.")
+                click.echo(f"\n  {skill}:")
+                click.echo(f"    {answer}")
+                if not click.confirm("    Is this still correct?", default=True):
+                    from src.conversation import conversational_qa
 
-                # Conflict check after user edits
+                    updated = conversational_qa(
+                        context_type="experience review",
+                        context_description=(
+                            f"Reviewing saved answer for '{skill}'. "
+                            f'Previous answer: "{answer}"'
+                        ),
+                        initial_question=(
+                            f"What would you like to change about your "
+                            f"answer for '{skill}'?"
+                        ),
+                        model=model,
+                    )
+                    if updated:
+                        prof.experience_bank[skill] = updated
+                        eb_changed = True
+                        click.echo("    Updated.")
+
+            prof.applications_since_review = 0
+            save_profile(prof, pname)
+            if eb_changed:
+                click.echo("Experience bank updated.")
                 click.echo("Checking for conflicts...")
                 conflicts = check_conflicts(prof, model=model)
                 if conflicts:
                     resolve_conflicts(prof, conflicts, pname, model=model)
                 else:
                     click.echo(click.style("  No conflicts found.", fg="green"))
-            else:
-                prof.applications_since_review = 0
-                save_profile(prof, pname)
 
     click.echo("\n" + "=" * 50)
     click.echo("  Resume Tailor - AI-Powered Resume Generator")
@@ -652,41 +684,61 @@ def generate(
                     # Check semantic matches from batch lookup
                     matched_entries = semantic_matches.get(skill, [])
                     if matched_entries:
-                        # Show all matched answers in full
-                        click.echo(f"\n  {skill}:")
-                        click.echo("    Saved answers from your experience bank:")
-                        for k, v in matched_entries:
-                            click.echo(f"      {k}: {v}")
-                        click.echo(
-                            "    [Enter] Use this answer  |  [u] Update  |  [s] Skip this skill"
+                        # LLM synthesizes matched entries into a coherent answer
+                        synth = _synthesize_experience(
+                            skill, gap.question, matched_entries, model
                         )
-                        choice = (
-                            click.prompt(
-                                "   ",
-                                default="",
-                                show_default=False,
+                        if synth:
+                            synthesized, conflicts = synth
+
+                            # Resolve any internal conflicts first
+                            if conflicts:
+                                click.echo(f"\n  {skill}:")
+                                click.echo(
+                                    "    Found some inconsistencies in your "
+                                    "previous answers:"
+                                )
+                                for c in conflicts:
+                                    desc = c.get("description", "")
+                                    cq = c.get("question", "")
+                                    click.echo(f"      - {desc}")
+                                    if cq:
+                                        clarification = conversational_qa(
+                                            context_type="experience conflict",
+                                            context_description=f"{skill}: {desc}",
+                                            initial_question=cq,
+                                            model=model,
+                                        )
+                                        if clarification:
+                                            synthesized += f" {clarification}"
+
+                            # Show synthesized answer for confirmation
+                            click.echo(f"\n  {skill}:")
+                            click.echo(
+                                "    Based on what you've told us before:"
                             )
-                            .strip()
-                            .lower()
-                        )
-                        if choice == "s":
-                            pass  # skip — don't include this skill
-                        elif choice == "u":
-                            answer = conversational_qa(
-                                context_type="skill gap",
-                                context_description=f"{skill}: {gap.question}",
-                                initial_question=gap.question,
-                                model=model,
-                            )
-                            if answer:
-                                gap_answers.append(f"{skill}: {answer}")
-                                save_experience(prof, skill, answer, pname)
-                                new_answers_saved = True
+                            click.echo(f"    {synthesized}")
+                            if click.confirm(
+                                "    Is this correct?", default=True
+                            ):
+                                gap_answers.append(f"{skill}: {synthesized}")
+                            else:
+                                # User says it's wrong — ask via Q&A
+                                answer = conversational_qa(
+                                    context_type="skill gap",
+                                    context_description=f"{skill}: {gap.question}",
+                                    initial_question=gap.question,
+                                    model=model,
+                                )
+                                if answer:
+                                    gap_answers.append(f"{skill}: {answer}")
+                                    save_experience(prof, skill, answer, pname)
+                                    new_answers_saved = True
                         else:
-                            # Include all matched answers
-                            for _k, v in matched_entries:
-                                gap_answers.append(f"{skill}: {v}")
-                    else:
+                            # Synthesis failed — fall through to fresh Q&A
+                            matched_entries = []
+
+                    if not matched_entries:
                         click.echo(f"\n  {skill}:")
                         answer = conversational_qa(
                             context_type="skill gap",
