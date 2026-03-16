@@ -25,6 +25,12 @@ Claude Code should read this to understand the project history and design philos
 10. **Docker = Claude API only** — Ollama (local models) is only for local installs, never inside Docker. LLM models are too large for containers (huge images, slow pulls, heavy resources). `docker-compose.full.yml` was removed.
 11. **Enrichment-first onboarding** — new users get targeted questions about missing facts (team size, metrics, scope) BEFORE any resume improvement. The LLM detects profession/industry first, ensuring questions and examples are role-appropriate. No placeholders needed since real data is gathered upfront. Replaces the old review-first flow that generated placeholder-stuffed bullets and engineering-biased suggestions.
 12. **Profession-neutral prompts** — all prompts detect the candidate's profession before generating feedback. Metric types, keyword suggestions, and examples must match the candidate's actual field, not default to software engineering.
+13. **Conflict resolution updates source data** — when conflicts are found between resume and experience bank, resolved answers update the original entries in place (not stacked as clarification entries). If the conflict involves resume text, the resume is auto-corrected. Conflict check includes today's date to avoid false timeline flags.
+14. **Conversational Q&A everywhere** — all user-facing questions (gap analysis, conflict resolution, enrichment) use the `conversational_qa` engine with follow-up questions, not plain `click.prompt`. This helps users who give vague or incomplete answers.
+15. **Semantic experience bank matching** — gap analysis matches skills to experience bank entries using LLM semantic understanding in 1 batch call, not exact name matching. "AI coding tools" correctly matches an entry about "GitHub Copilot experience".
+16. **Step 8 sees gap answers** — compatibility assessment receives `user_additions` (gap answers) so the score reflects what the user told us, not just what's on the resume.
+17. **Writing preferences asked once** — collected upfront before generation, saved to profile. No section-by-section review loop. Users can update via `profile edit`.
+18. **No redundant re-enrichment** — periodic maintenance (every 10 apps) only reviews the experience bank, not re-enrichment of the already-improved resume. Step 3b ("anything new?") handles resume updates.
 
 ## Known Issues to Watch
 - Local Ollama models produce lower quality output than Claude API
