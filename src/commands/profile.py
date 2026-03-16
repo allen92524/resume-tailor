@@ -225,18 +225,14 @@ def profile_edit(ctx):
 
 
 def _check_and_resolve_conflicts(prof, pname: str) -> None:
-    """Use the LLM to check for contradictions between resume and experience bank.
+    """Check for contradictions and resolve via conversational Q&A.
 
     Called after saving edits to resume (option 1) or experience bank (option 3).
-    If conflicts are found, asks the user questions to resolve each one and
-    updates the experience bank with corrected answers.
+    Delegates to the shared check_conflicts + resolve_conflicts from src/profile.py
+    which uses conversational Q&A (not plain click.prompt).
     """
-    import json
-
     from src.commands.common import select_model_interactive, validate_api_key
-    from src.config import MAX_TOKENS_CONFLICT_CHECK
-    from src.llm_client import call_llm
-    from src.prompts import CONFLICT_CHECK_SYSTEM, CONFLICT_CHECK_USER
+    from src.profile import check_conflicts, resolve_conflicts
 
     if not prof.base_resume or not prof.experience_bank:
         return
@@ -249,65 +245,11 @@ def _check_and_resolve_conflicts(prof, pname: str) -> None:
         model = select_model_interactive({})
     validate_api_key(model)
 
-    # Format experience bank for the prompt
-    eb_text = "\n".join(
-        f"- {topic}: {answer}" for topic, answer in prof.experience_bank.items()
-    )
-
-    try:
-        response = call_llm(
-            model=model,
-            max_tokens=MAX_TOKENS_CONFLICT_CHECK,
-            system=CONFLICT_CHECK_SYSTEM,
-            user_content=CONFLICT_CHECK_USER.format(
-                resume_text=prof.base_resume,
-                experience_bank=eb_text,
-            ),
-            purpose="conflict check",
-        )
-
-        data = json.loads(response)
-        conflicts = data.get("conflicts", [])
-    except Exception as e:
-        click.echo(f"Could not check for conflicts: {e}")
-        return
-
-    if not conflicts:
-        click.echo("No contradictions found.")
-        return
-
-    click.echo(f"\nFound {len(conflicts)} contradiction(s):\n")
-
-    for i, conflict in enumerate(conflicts, 1):
-        click.echo(f"  {i}. {conflict['description']}")
-        click.echo(f"     - \"{conflict['source_a']}\"")
-        click.echo(f"     - \"{conflict['source_b']}\"")
-        click.echo()
-
-        answer = click.prompt(f"  {conflict['question']}", default="skip")
-        if answer.lower() == "skip":
-            click.echo("  Skipped.\n")
-            continue
-
-        # Find and update the experience bank entry that matches
-        # Try to match the conflict to an experience bank topic
-        updated = False
-        for topic in prof.experience_bank:
-            if topic.lower() in conflict.get("source_a", "").lower() or \
-               topic.lower() in conflict.get("source_b", "").lower():
-                prof.experience_bank[topic] = answer
-                click.echo(f"  Updated '{topic}' in experience bank.\n")
-                updated = True
-                break
-
-        if not updated:
-            # If no matching topic found, store under the conflict description
-            key = conflict["description"][:80]
-            prof.experience_bank[key] = answer
-            click.echo("  Saved answer to experience bank.\n")
-
-    save_profile(prof, pname)
-    click.echo("Profile updated with conflict resolutions.")
+    conflicts = check_conflicts(prof, model=model)
+    if conflicts:
+        resolve_conflicts(prof, conflicts, pname, model=model)
+    else:
+        click.echo(click.style("  No contradictions found.", fg="green"))
 
 
 def _edit_resume_interactive(prof, pname: str) -> None:
