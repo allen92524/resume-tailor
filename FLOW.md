@@ -38,7 +38,10 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - If `applications_since_review >= 10`:
   - Offer experience bank review: keep, update, or delete each saved answer
   - If user made any edits → run conflict check (1 LLM call) to detect contradictions
-  - If conflicts found → walk user through each one with clarifying questions
+  - Conflict check includes today's date to avoid false timeline conflicts
+  - If conflicts found → walk user through each one with conversational Q&A (follow-ups if answer is unclear)
+  - Resolved conflicts update experience bank entries in place (not stacked as clarifications)
+  - If conflict involves resume text → auto-apply factual corrections to `base_resume` via LLM
   - Reset counter
 - Note: Baseline resume refresh is handled by Step 3b ("anything new?"), not here.
   This avoids redundant re-enrichment of an already-improved resume.
@@ -52,8 +55,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 ### Step 3b: Returning User Check
 - If profile exists, ask: "Anything new since your last application? New skills, projects, certifications?"
 - If yes → update `base_resume` via LLM, save new info to experience bank
-- After save → run conflict check (1 LLM call) to detect contradictions
-- If conflicts found → walk user through each one with clarifying questions
+- After save → run conflict check (same behavior as Step 2b: date-aware, conversational Q&A, in-place updates, resume auto-correction)
 - If no → proceed with existing baseline
 
 ### Step 4: Reference Resume (Optional)
@@ -83,8 +85,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
   - Question style: simple, concrete with profession-appropriate examples
   - Smart follow-up on "No" answers: suggest adjacent skills
 - Save new answers to experience bank
-- After all new answers saved → run conflict check (1 LLM call)
-- If conflicts found → walk user through each one with clarifying questions
+- After all new answers saved → run conflict check (same behavior as Step 2b: date-aware, conversational Q&A, in-place updates, resume auto-correction)
 - Also ask generic questions: additional skills, what to emphasize, preferred title
 
 ### Step 8: Compatibility Assessment
