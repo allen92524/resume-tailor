@@ -8,7 +8,6 @@ import click
 
 from src.config import (
     DEFAULT_MODEL,
-    MAX_GAP_QUESTIONS,
     DEFAULT_OUTPUT_FORMAT,
 )
 from src.llm_client import (
@@ -26,7 +25,6 @@ from src.models import (
 )
 from src.resume_parser import collect_resume_text, validate_resume_content
 from src.jd_analyzer import analyze_jd, collect_jd_text
-from src.gap_analyzer import analyze_gaps
 from src.compatibility_assessor import assess_compatibility, display_assessment
 from src.resume_generator import generate_tailored_resume
 from src.docx_builder import build_resume, open_file
@@ -36,7 +34,6 @@ from src.profile import (
     save_profile,
     first_run_setup,
     select_profile_interactive,
-    lookup_experience_semantic,
     save_experience,
     check_conflicts,
     resolve_conflicts,
@@ -618,153 +615,96 @@ def generate(
             emphasis = saved_answers.get("emphasis", "")
             job_title = saved_answers.get("job_title", "")
         else:
-            # Run gap analysis and ask questions fresh
+            # Run unified analysis and ask questions fresh
             click.echo("\n--- Step 7: Gap Analysis & Follow-Up Questions ---")
 
             # Optional: web search for company/role context (requires BRAVE_API_KEY)
             web_context = _search_company_context(jd_analysis)
+
+            gap_answers: list[str] = []
+            new_answers_saved = False
 
             if dry_run:
                 click.echo("[DRY RUN] Loading mock gap analysis...")
                 gap_result = GapAnalysis.from_dict(
                     _load_mock_fixture("mock_gap_analysis.json")
                 )
+                # Show strengths from mock
+                if gap_result.strengths:
+                    click.echo("\nYour resume already matches well on:")
+                    for s in gap_result.strengths:
+                        click.echo(f"  - {s}")
             else:
-                click.echo("Comparing your resume against the job requirements...")
-                try:
-                    gap_result = analyze_gaps(resume_text, jd_analysis, model=model)
-                except Exception as e:
-                    logger.warning("Gap analysis failed: %s", e)
-                    click.echo(
-                        f"Warning: Gap analysis failed ({e}). Continuing without it."
-                    )
-                    gap_result = GapAnalysis()
-
-            # Show strengths
-            if gap_result.strengths:
-                click.echo("\nYour resume already matches well on:")
-                for s in gap_result.strengths:
-                    click.echo(f"  - {s}")
-
-            # Ask gap questions (with semantic experience bank matching)
-            gap_answers: list[str] = []
-            new_answers_saved = False
-            if gap_result.gaps:
-                from src.conversation import conversational_qa
-
-                # Batch semantic matching: 1 LLM call to match all gaps
-                # against the full experience bank
-                valid_gaps = [g for g in gap_result.gaps if g.question.strip()]
-                gap_skills = [g.skill for g in valid_gaps]
-                if prof.experience_bank and gap_skills and not dry_run:
-                    click.echo("Checking experience bank for relevant answers...")
-                    semantic_matches = lookup_experience_semantic(
-                        prof, gap_skills, model=model
-                    )
-                else:
-                    semantic_matches = {s: [] for s in gap_skills}
+                # Unified analysis: resume + work history + JD in one call
+                from src.unified_analyzer import unified_analysis
 
                 click.echo(
-                    "\nI have a few questions based on gaps between your resume and the JD."
-                    "\nAnswer each one, or press Enter to skip.\n"
+                    "Analyzing your profile against the job requirements..."
                 )
-                seen_questions: set[str] = set()
-                question_count = 0
-                for gap in valid_gaps:
-                    # Safety: never ask more than MAX_GAP_QUESTIONS
-                    if question_count >= MAX_GAP_QUESTIONS:
-                        logger.debug(
-                            "Reached max gap questions limit (%d), stopping",
-                            MAX_GAP_QUESTIONS,
+                try:
+                    analysis = unified_analysis(prof, jd_analysis, model=model)
+                except Exception as e:
+                    logger.warning("Unified analysis failed: %s", e)
+                    click.echo(
+                        f"Warning: Analysis failed ({e}). Continuing without it."
+                    )
+                    analysis = None
+
+                if analysis:
+                    # Show strengths
+                    if analysis.strengths:
+                        click.echo("\nYour resume already matches well on:")
+                        for s in analysis.strengths:
+                            click.echo(f"  - {s}")
+
+                    # Walk through questions — gaps and conflicts in one flow
+                    if analysis.questions:
+                        from src.conversation import conversational_qa
+
+                        click.echo(
+                            "\nI have a few questions to strengthen your resume."
+                            "\nAnswer each one, or press Enter to skip.\n"
                         )
-                        break
-                    # Deduplicate: skip if we already asked this question
-                    q_key = gap.question.strip().lower()
-                    if q_key in seen_questions:
-                        logger.debug("Skipping duplicate question: %s", gap.question)
-                        continue
-                    seen_questions.add(q_key)
-                    question_count += 1
-                    skill = gap.skill
 
-                    # Check semantic matches from batch lookup
-                    matched_entries = semantic_matches.get(skill, [])
-                    if matched_entries:
-                        # LLM synthesizes matched entries into a coherent answer
-                        synth = _synthesize_experience(
-                            skill, gap.question, matched_entries, model
-                        )
-                        if synth:
-                            synthesized, conflicts = synth
+                        for q in analysis.questions:
+                            if not q.question.strip():
+                                continue
 
-                            # Resolve any internal conflicts first
-                            if conflicts:
-                                click.echo(f"\n  {skill}:")
-                                click.echo(
-                                    "    Found some inconsistencies in your "
-                                    "previous answers:"
-                                )
-                                for c in conflicts:
-                                    desc = c.get("description", "")
-                                    cq = c.get("question", "")
-                                    click.echo(f"      - {desc}")
-                                    if cq:
-                                        clarification = conversational_qa(
-                                            context_type="experience conflict",
-                                            context_description=f"{skill}: {desc}",
-                                            initial_question=cq,
-                                            model=model,
-                                        )
-                                        if clarification:
-                                            synthesized += f" {clarification}"
-
-                            # Show synthesized answer for confirmation
-                            click.echo(f"\n  {skill}:")
-                            click.echo(
-                                "    Based on what you've told us before:"
-                            )
-                            click.echo(f"    {synthesized}")
-                            if click.confirm(
-                                "    Is this correct?", default=True
-                            ):
-                                gap_answers.append(f"{skill}: {synthesized}")
+                            label = q.skill
+                            if q.type == "conflict":
+                                click.echo(f"\n  {label} (clarification needed):")
+                                if q.context:
+                                    click.echo(f"    Context: {q.context}")
                             else:
-                                # User says it's wrong — ask via Q&A
-                                answer = conversational_qa(
-                                    context_type="skill gap",
-                                    context_description=f"{skill}: {gap.question}",
-                                    initial_question=gap.question,
-                                    model=model,
+                                click.echo(f"\n  {label}:")
+
+                            answer = conversational_qa(
+                                context_type=q.type,
+                                context_description=(
+                                    f"{q.skill}: {q.context}" if q.context
+                                    else f"{q.skill}: {q.question}"
+                                ),
+                                initial_question=q.question,
+                                model=model,
+                            )
+                            if answer:
+                                gap_answers.append(f"{q.skill}: {answer}")
+                                save_experience(
+                                    prof, q.skill, answer, pname,
+                                    role_key=q.suggested_role or "General",
                                 )
-                                if answer:
-                                    gap_answers.append(f"{skill}: {answer}")
-                                    save_experience(prof, skill, answer, pname)
-                                    new_answers_saved = True
-                        else:
-                            # Synthesis failed — fall through to fresh Q&A
-                            matched_entries = []
+                                new_answers_saved = True
 
-                    if not matched_entries:
-                        click.echo(f"\n  {skill}:")
-                        answer = conversational_qa(
-                            context_type="skill gap",
-                            context_description=f"{skill}: {gap.question}",
-                            initial_question=gap.question,
-                            model=model,
-                        )
-                        if answer:
-                            gap_answers.append(f"{skill}: {answer}")
-                            save_experience(prof, skill, answer, pname)
-                            new_answers_saved = True
-
-                # Conflict check after all new gap answers are saved
+                # Safety net conflict check after all answers saved
                 if new_answers_saved and not dry_run:
-                    click.echo("\nChecking for conflicts in your profile...")
+                    click.echo("\nFinal consistency check...")
                     conflicts = check_conflicts(prof, model=model)
                     if conflicts:
                         resolve_conflicts(prof, conflicts, pname, model=model)
                     else:
-                        click.echo(click.style("  No conflicts found.", fg="green"))
+                        click.echo(
+                            click.style("  No conflicts found.", fg="green")
+                        )
 
             # Generic follow-up questions
             click.echo("\n--- Additional Questions ---")

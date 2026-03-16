@@ -271,8 +271,6 @@ class TestOllamaFallbackChain:
         ), patch(
             "src.commands.generate.analyze_jd"
         ) as mock_analyze, patch(
-            "src.commands.generate.analyze_gaps"
-        ), patch(
             "src.commands.generate.assess_compatibility"
         ), patch(
             "src.commands.generate.generate_tailored_resume"
@@ -350,8 +348,6 @@ class TestOllamaFallbackChain:
         ), patch(
             "src.commands.generate.analyze_jd"
         ) as mock_analyze, patch(
-            "src.commands.generate.analyze_gaps"
-        ), patch(
             "src.commands.generate.assess_compatibility"
         ), patch(
             "src.commands.generate.generate_tailored_resume"
