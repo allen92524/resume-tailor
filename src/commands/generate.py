@@ -652,13 +652,11 @@ def generate(
                     # Check semantic matches from batch lookup
                     matched_entries = semantic_matches.get(skill, [])
                     if matched_entries:
-                        # Combine all matched answers for display
-                        combined = " | ".join(
-                            f"{k}: {v[:70]}..." if len(v) > 70 else f"{k}: {v}"
-                            for k, v in matched_entries
-                        )
+                        # Show all matched answers in full
                         click.echo(f"\n  {skill}:")
-                        click.echo(f'    Saved answer: "{combined[:150]}"')
+                        click.echo("    Saved answers from your experience bank:")
+                        for k, v in matched_entries:
+                            click.echo(f"      {k}: {v}")
                         click.echo(
                             "    [Enter] Use this answer  |  [u] Update  |  [s] Skip this skill"
                         )
