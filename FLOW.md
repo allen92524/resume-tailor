@@ -36,8 +36,9 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 
 ### Step 2b: Periodic Experience Bank Review (returning users)
 - If `applications_since_review >= 10`:
-  - Offer experience bank review: keep, update, or delete each saved answer
-  - If user made any edits → run conflict check (1 LLM call) to detect contradictions
+  - Show each saved answer, user confirms "Is this still correct?" (Y/n)
+  - If no → conversational Q&A to correct (user never directly edits text)
+  - If any entries changed → run conflict check (1 LLM call) to detect contradictions
   - Conflict check includes today's date to avoid false timeline conflicts
   - If conflicts found → walk user through each one with conversational Q&A (follow-ups if answer is unclear)
   - Resolved conflicts update experience bank entries in place (not stacked as clarifications)
@@ -86,8 +87,12 @@ Code must match this flow exactly. Update this file BEFORE changing code.
   - LLM returns which experience bank entries are relevant to each gap
   - Matches by meaning, not just exact name (e.g. "AI coding tools" matches "GitHub Copilot experience")
   - Falls back to exact matching if LLM call fails
-- For each gap with a matching experience bank entry:
-  - Show saved answer, offer to reuse, update, or skip
+- For each gap with matching experience bank entries:
+  - LLM synthesizes all related entries into a single coherent answer (1 LLM call per match)
+  - LLM checks for internal contradictions within the entries
+  - If conflicts → resolve via conversational Q&A before showing
+  - Show synthesized answer: "Based on what you've told us before: [answer]. Is this correct?"
+  - If yes → use it; if no → conversational Q&A to correct
 - For gaps with no match:
   - Ask smart questions — ordered by importance to the JD
   - Question style: simple, concrete with profession-appropriate examples
@@ -168,7 +173,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - `profile update` — interactively update identity fields
 - `profile reset` — delete profile and start over
 - `profile reset-baseline` — revert base_resume back to original_resume
-- `profile edit` — interactive editor (resume, contact info, or raw JSON)
+- `profile edit` — interactive editor (resume, contact info, or experience bank Q&A review)
 - `profile export` — export as markdown
 - `profile backup` — create timestamped backup
 - `profile restore` — restore from backup

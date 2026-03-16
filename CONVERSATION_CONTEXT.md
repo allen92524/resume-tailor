@@ -15,8 +15,8 @@ Claude Code should read this to understand the project history and design philos
 ## Key Design Decisions
 1. **Original resume preserved** — stored as `original_resume` in profile, never modified
 2. **Base resume** — improved version through user-confirmed Q&A, used for all generations
-3. **Experience bank** — raw user answers reused across applications
-4. **Writing preferences** — captured from user feedback during output review
+3. **Experience bank** — LLM-managed knowledge base, user never directly edits text (see #19)
+4. **Writing preferences** — captured upfront before generation, saved to profile (see #17)
 5. **Model selection first** — before any LLM call, user picks Claude API or Ollama
 6. **Profile identity overrides LLM output** — contact info always from profile, never from generation
 7. **No placeholders in generation** — generation prompt must never produce [X%] or [number]
@@ -31,6 +31,9 @@ Claude Code should read this to understand the project history and design philos
 16. **Step 8 sees gap answers** — compatibility assessment receives `user_additions` (gap answers) so the score reflects what the user told us, not just what's on the resume.
 17. **Writing preferences asked once** — collected upfront before generation, saved to profile. No section-by-section review loop. Users can update via `profile edit`.
 18. **No redundant re-enrichment** — periodic maintenance (every 10 apps) only reviews the experience bank, not re-enrichment of the already-improved resume. Step 3b ("anything new?") handles resume updates.
+19. **LLM-managed experience bank** — users never directly edit experience bank text. All changes go through conversational Q&A. When matched entries exist for a gap skill, the LLM synthesizes them into a single answer, checks for conflicts, and the user confirms "Is this correct?" or corrects via Q&A. This prevents unpredictable edits that cause data inconsistencies.
+20. **MCP integration (Model Context Protocol)** — URL fetching for JD input (Step 5) and reference resumes (Step 4) via `mcp-server-fetch`. Optional Brave Search for company research (Step 7, needs `BRAVE_API_KEY`). Most JS-rendered job sites (LinkedIn, Greenhouse, etc.) fail gracefully with fallback to manual paste.
+21. **URL extraction validation** — fetched pages are truncated to 30K chars before LLM processing. LLM responses are checked for apology/failure signals and minimum word count (150+ words for a real JD) to prevent showing error messages as job descriptions.
 
 ## Known Issues to Watch
 - Local Ollama models produce lower quality output than Claude API
@@ -38,6 +41,8 @@ Claude Code should read this to understand the project history and design philos
 - Branch protection blocks direct pushes — use PR workflow
 - Auto-release uses tags via GitHub API, not commits to main
 - Docker path conversion needed for file access inside containers
+- Most job board URLs (LinkedIn, Greenhouse, Ashby, Lever) are JS-rendered and fail MCP fetch — users must paste JD manually for these sites
+- Chinese translations (README_CN.md, USAGE_CN.md) need updating with recent features
 
 ## Testing Requirements
 - Run `make lint` and `make test` before every commit
