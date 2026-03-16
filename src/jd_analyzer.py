@@ -151,6 +151,15 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
         )
         return None
 
+    # Truncate very large pages to avoid wasting tokens on navigation/scripts.
+    # Most job descriptions are under 20K chars of meaningful content.
+    max_content = 30000
+    if len(page_content) > max_content:
+        logger.info(
+            "Page content truncated from %d to %d chars", len(page_content), max_content
+        )
+        page_content = page_content[:max_content]
+
     click.echo(f"Page fetched ({len(page_content)} chars). Extracting job description...")
     try:
         jd_text = call_llm(
@@ -170,8 +179,17 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
         return None
 
     jd_text = jd_text.strip()
+
+    # Detect if the LLM returned an error/apology instead of a real JD
+    if _looks_like_extraction_failure(jd_text):
+        click.echo(
+            "This page doesn't contain an accessible job description "
+            "(the site may block automated access).\n"
+            "Please paste the job description manually instead."
+        )
+        return None
+
     click.echo(f"\nExtracted job description ({len(jd_text.split())} words):")
-    # Show preview
     preview = jd_text[:500] + ("..." if len(jd_text) > 500 else "")
     click.echo(preview)
 
@@ -180,3 +198,23 @@ def _fetch_jd_from_url(url: str, model: str = DEFAULT_MODEL) -> str | None:
 
     click.echo("Discarded. Please paste the job description manually.")
     return None
+
+
+def _looks_like_extraction_failure(text: str) -> bool:
+    """Detect if LLM returned an error message instead of an actual JD."""
+    lower = text.lower()
+    failure_signals = [
+        "i apologize",
+        "i'm unable to",
+        "i cannot access",
+        "unable to extract",
+        "no job description found",
+        "robots.txt",
+        "access is not permitted",
+        "could not find",
+        "visit the page directly",
+        "copy the job description",
+    ]
+    matches = sum(1 for signal in failure_signals if signal in lower)
+    # If 2+ failure signals found, it's likely an error, not a JD
+    return matches >= 2
