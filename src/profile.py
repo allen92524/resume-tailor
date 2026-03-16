@@ -494,19 +494,81 @@ def first_run_setup(
 
 
 def save_experience(
-    profile: Profile, skill: str, answer: str, profile_name: str = DEFAULT_PROFILE
+    profile: Profile,
+    skill: str,
+    answer: str,
+    profile_name: str = DEFAULT_PROFILE,
+    role_key: str = "General",
 ) -> None:
-    """Save a gap answer to the experience bank."""
+    """Save a gap answer to the structured work history.
+
+    Stores under work_history[role_key][skill] = answer.
+    Also writes to legacy experience_bank for backward compatibility
+    until migration is complete.
+    """
+    if role_key not in profile.work_history:
+        profile.work_history[role_key] = {}
+    profile.work_history[role_key][skill] = answer
+    # Keep legacy experience_bank in sync for pre-migration code paths
     profile.experience_bank[skill] = answer
     save_profile(profile, profile_name)
 
 
+def get_all_experience(profile: Profile) -> dict[str, str]:
+    """Return a flat dict of all experience across all roles.
+
+    Merges work_history (preferred) with legacy experience_bank as fallback.
+    If work_history is populated, it takes precedence.
+    """
+    if profile.work_history:
+        flat: dict[str, str] = {}
+        for _role, entries in profile.work_history.items():
+            flat.update(entries)
+        return flat
+    return dict(profile.experience_bank)
+
+
+def get_experience_by_role(profile: Profile) -> dict[str, dict[str, str]]:
+    """Return work history grouped by role.
+
+    Falls back to wrapping legacy experience_bank under a 'General' role.
+    """
+    if profile.work_history:
+        return dict(profile.work_history)
+    if profile.experience_bank:
+        return {"General": dict(profile.experience_bank)}
+    return {}
+
+
+def format_work_history_text(profile: Profile) -> str:
+    """Format work history as readable text for LLM prompts.
+
+    Groups entries by role for structured context.
+    """
+    by_role = get_experience_by_role(profile)
+    if not by_role:
+        return ""
+    lines = []
+    for role, entries in by_role.items():
+        lines.append(f"[{role}]")
+        for skill, answer in entries.items():
+            lines.append(f"  - {skill}: {answer}")
+    return "\n".join(lines)
+
+
 def lookup_experience(profile: Profile, skill: str) -> str | None:
-    """Look up a saved answer in the experience bank.
+    """Look up a saved answer across all roles.
 
     Uses case-insensitive matching on the skill key.
+    Searches work_history first, falls back to legacy experience_bank.
     """
     skill_lower = skill.lower()
+    # Search structured work_history
+    for _role, entries in profile.work_history.items():
+        for key, value in entries.items():
+            if key.lower() == skill_lower:
+                return value
+    # Fallback to legacy experience_bank
     for key, value in profile.experience_bank.items():
         if key.lower() == skill_lower:
             return value
@@ -518,19 +580,22 @@ def lookup_experience_semantic(
     gap_skills: list[str],
     model: str = DEFAULT_MODEL,
 ) -> dict[str, list[tuple[str, str]]]:
-    """Match gap skills to experience bank entries using LLM semantic matching.
+    """Match gap skills to experience entries using LLM semantic matching.
 
-    Sends all gap skills + experience bank in ONE batch call.
+    Sends all gap skills + work history in ONE batch call.
     Returns a dict mapping gap skill -> list of (key, answer) tuples.
     Falls back to exact matching if LLM call fails.
     """
-    if not profile.experience_bank or not gap_skills:
+    all_experience = get_all_experience(profile)
+    if not all_experience or not gap_skills:
         return {skill: [] for skill in gap_skills}
 
-    # Format experience bank for the prompt
-    eb_text = "\n".join(
-        f"- {key}: {answer[:200]}" for key, answer in profile.experience_bank.items()
-    )
+    # Format work history for the prompt (role-grouped if available)
+    wh_text = format_work_history_text(profile)
+    if not wh_text:
+        wh_text = "\n".join(
+            f"- {key}: {answer[:200]}" for key, answer in all_experience.items()
+        )
     skills_text = "\n".join(f"- {skill}" for skill in gap_skills)
 
     try:
@@ -540,26 +605,25 @@ def lookup_experience_semantic(
             system=EXPERIENCE_BANK_MATCH_SYSTEM,
             user_content=EXPERIENCE_BANK_MATCH_USER.format(
                 gap_skills=skills_text,
-                experience_bank=eb_text,
+                experience_bank=wh_text,
             ),
             purpose="experience bank matching",
         )
         data = parse_json_response(raw)
         matches_raw = data.get("matches", {})
 
-        # Convert to (key, answer) tuples
+        # Convert to (key, answer) tuples — search across all roles
         result: dict[str, list[tuple[str, str]]] = {}
         for skill in gap_skills:
             matched_keys = matches_raw.get(skill, [])
             result[skill] = [
-                (k, profile.experience_bank[k])
+                (k, all_experience[k])
                 for k in matched_keys
-                if k in profile.experience_bank
+                if k in all_experience
             ]
         return result
     except Exception:
         logger.warning("Semantic matching failed, falling back to exact match")
-        # Fallback: exact case-insensitive matching
         result = {}
         for skill in gap_skills:
             exact = lookup_experience(profile, skill)
@@ -571,19 +635,20 @@ def check_conflicts(
     profile: Profile,
     model: str = DEFAULT_MODEL,
 ) -> list[dict[str, str]]:
-    """Check for contradictions between resume and experience bank.
+    """Check for contradictions between resume and work history.
 
     Returns a list of conflict dicts with 'description', 'source_a',
     'source_b', and 'question' keys. Empty list if no conflicts.
     """
     from datetime import date
 
-    if not profile.base_resume or not profile.experience_bank:
+    all_exp = get_all_experience(profile)
+    if not profile.base_resume or not all_exp:
         return []
 
-    eb_text = "\n".join(
-        f"- {key}: {answer}" for key, answer in profile.experience_bank.items()
-    )
+    eb_text = format_work_history_text(profile)
+    if not eb_text:
+        eb_text = "\n".join(f"- {key}: {answer}" for key, answer in all_exp.items())
 
     try:
         raw = call_llm(
@@ -654,13 +719,23 @@ def resolve_conflicts(
         if not answer:
             continue
 
-        # Update the conflicting experience bank entries in place
+        # Update the conflicting entries in place (work_history + legacy)
+        updated_any = False
         for key in eb_keys:
+            # Search work_history
+            for _role, entries in profile.work_history.items():
+                if key in entries:
+                    entries[key] = answer
+                    updated_any = True
+            # Also update legacy experience_bank
             if key in profile.experience_bank:
                 profile.experience_bank[key] = answer
-        # If no specific keys were identified, save under the description
-        if not eb_keys:
-            profile.experience_bank[f"clarification: {description}"] = answer
+                updated_any = True
+        if not updated_any:
+            # Save under the description in General role
+            save_experience(
+                profile, f"clarification: {description}", answer, profile_name
+            )
 
         if involves_resume:
             resume_corrections.append(
@@ -853,11 +928,31 @@ def export_as_markdown(profile: Profile) -> str:
             lines.append(f"- **{key}:** {value}")
         lines.append("")
 
-    # Experience bank
-    if profile.experience_bank:
-        lines.append("## Experience Bank")
-        for skill, answer in profile.experience_bank.items():
-            lines.append(f"- **{skill}:** {answer}")
+    # Education
+    if profile.education:
+        lines.append("## Education")
+        for edu in profile.education:
+            degree = edu.get("degree", "")
+            school = edu.get("school", "")
+            year = edu.get("year", "")
+            lines.append(f"- **{degree}** — {school} ({year})")
+        lines.append("")
+
+    # Certifications
+    if profile.certifications:
+        lines.append("## Certifications")
+        for cert in profile.certifications:
+            lines.append(f"- {cert}")
+        lines.append("")
+
+    # Work History (structured) or legacy Experience Bank
+    by_role = get_experience_by_role(profile)
+    if by_role:
+        lines.append("## Work History & Experience")
+        for role, entries in by_role.items():
+            lines.append(f"\n### {role}")
+            for skill, answer in entries.items():
+                lines.append(f"- **{skill}:** {answer}")
         lines.append("")
 
     # Application history

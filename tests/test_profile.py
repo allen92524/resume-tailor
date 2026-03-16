@@ -160,9 +160,9 @@ class TestExportAsMarkdown:
         md = export_as_markdown(sample_profile)
         assert "sarah.chen@email.com" in md
 
-    def test_export_has_experience_bank(self, sample_profile):
+    def test_export_has_work_history(self, sample_profile):
         md = export_as_markdown(sample_profile)
-        assert "Experience Bank" in md
+        assert "Work History & Experience" in md
         assert "Go" in md
 
     def test_export_with_history(self, sample_profile):
