@@ -35,6 +35,8 @@ from src.profile import (
     first_run_setup,
     select_profile_interactive,
     save_experience,
+    get_all_experience,
+    get_experience_by_role,
     check_conflicts,
     resolve_conflicts,
     append_history,
@@ -284,46 +286,53 @@ def generate(
     if output_path is None:
         output_path = prefs.get("output_path")
 
-    # Periodic experience bank review — prompt after every 10 applications
+    # Periodic work history review — prompt after every 10 applications
     # (Baseline resume refresh is handled by Step 3b's "anything new?" prompt,
-    # so we only review the experience bank here to keep/update/delete entries.)
+    # so we only review work history here to confirm/correct entries.)
     eb_changed = False
-    if not dry_run and prof.experience_bank and prof.applications_since_review >= 10:
+    all_exp = get_all_experience(prof)
+    if not dry_run and all_exp and prof.applications_since_review >= 10:
         click.echo(
             click.style(
                 f"\nYou've generated {prof.applications_since_review} resumes since "
-                "your last review. Time for a quick experience bank check.",
+                "your last review. Time for a quick experience check.",
                 fg="yellow",
                 bold=True,
             )
         )
         if click.confirm("Review your saved answers?", default=False):
+            by_role = get_experience_by_role(prof)
+            total = sum(len(e) for e in by_role.values())
             click.echo(
-                f"\nYou have {len(prof.experience_bank)} saved answers. "
-                "I'll summarize each one — just confirm or correct.\n"
+                f"\nYou have {total} saved answers across {len(by_role)} roles. "
+                "I'll show each one — just confirm or correct.\n"
             )
-            for skill, answer in list(prof.experience_bank.items()):
-                click.echo(f"\n  {skill}:")
-                click.echo(f"    {answer}")
-                if not click.confirm("    Is this still correct?", default=True):
-                    from src.conversation import conversational_qa
+            for role, entries in by_role.items():
+                click.echo(click.style(f"\n  [{role}]", bold=True))
+                for skill, answer in list(entries.items()):
+                    click.echo(f"\n    {skill}:")
+                    click.echo(f"      {answer}")
+                    if not click.confirm("      Is this still correct?", default=True):
+                        from src.conversation import conversational_qa
 
-                    updated = conversational_qa(
-                        context_type="experience review",
-                        context_description=(
-                            f"Reviewing saved answer for '{skill}'. "
-                            f'Previous answer: "{answer}"'
-                        ),
-                        initial_question=(
-                            f"What would you like to change about your "
-                            f"answer for '{skill}'?"
-                        ),
-                        model=model,
-                    )
-                    if updated:
-                        prof.experience_bank[skill] = updated
-                        eb_changed = True
-                        click.echo("    Updated.")
+                        updated = conversational_qa(
+                            context_type="experience review",
+                            context_description=(
+                                f"Reviewing saved answer for '{skill}' "
+                                f"at '{role}'. Previous answer: \"{answer}\""
+                            ),
+                            initial_question=(
+                                f"What would you like to change about your "
+                                f"answer for '{skill}'?"
+                            ),
+                            model=model,
+                        )
+                        if updated:
+                            save_experience(
+                                prof, skill, updated, pname, role_key=role
+                            )
+                            eb_changed = True
+                            click.echo("      Updated.")
 
             prof.applications_since_review = 0
             save_profile(prof, pname)

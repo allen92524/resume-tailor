@@ -120,7 +120,7 @@ def review(ctx, model):
             save_profile(prof, pname)
             click.echo("Base resume updated and saved.")
 
-            # Save answers to experience bank
+            # Save answers to work history under "Review Improvements"
             for issue, answer in answers.items():
                 save_experience(prof, issue, answer, pname)
         else:
