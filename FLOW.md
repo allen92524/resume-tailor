@@ -30,18 +30,26 @@ Code must match this flow exactly. Update this file BEFORE changing code.
   - Never change education, certifications, job titles, or dates without explicit confirmation
   - Show improved resume and get confirmation before saving
   - Save improved version as `base_resume`, original stays as `original_resume`
-  - Save raw answers to experience bank for future reuse
+  - Save raw answers to work history (grouped by role) for future reuse
   - Extract contact info via LLM
   - Save profile
 
-### Step 2b: Periodic Experience Bank Review (returning users)
+### Step 2a: Profile Migration (one-time, existing users)
+- If profile has old flat `experience_bank` (schema_version < 2):
+  - Auto-backup profile before migration
+  - Extract education and certifications from resume via LLM
+  - Extract work role keys from resume via pattern matching
+  - Group flat experience bank entries by role via LLM
+  - Set schema_version = 2, clear legacy experience_bank
+
+### Step 2b: Periodic Work History Review (returning users)
 - If `applications_since_review >= 10`:
-  - Show each saved answer, user confirms "Is this still correct?" (Y/n)
+  - Show each saved answer grouped by role, user confirms "Is this still correct?" (Y/n)
   - If no → conversational Q&A to correct (user never directly edits text)
   - If any entries changed → run conflict check (1 LLM call) to detect contradictions
   - Conflict check includes today's date to avoid false timeline conflicts
-  - If conflicts found → walk user through each one with conversational Q&A (follow-ups if answer is unclear)
-  - Resolved conflicts update experience bank entries in place (not stacked as clarifications)
+  - If conflicts found → walk user through each one with conversational Q&A
+  - Resolved conflicts update work history entries in place
   - If conflict involves resume text → auto-apply factual corrections to `base_resume` via LLM
   - Reset counter
 - Note: Baseline resume refresh is handled by Step 3b ("anything new?"), not here.
@@ -55,8 +63,8 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 
 ### Step 3b: Returning User Check
 - If profile exists, ask: "Anything new since your last application? New skills, projects, certifications?"
-- If yes → update `base_resume` via LLM, save new info to experience bank
-- After save → run conflict check (same behavior as Step 2b: date-aware, conversational Q&A, in-place updates, resume auto-correction)
+- If yes → update `base_resume` via LLM, save new info to work history
+- After save → run conflict check (same behavior as Step 2b)
 - If no → proceed with existing baseline
 
 ### Step 4: Reference Resume (Optional)
@@ -75,30 +83,24 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - Send JD + reference resume (if provided) to LLM
 - Extract: role, company, required skills, preferred skills, keywords, responsibilities
 
-### Step 7: Gap Analysis & Follow-Up Questions
+### Step 7: Unified Analysis & Follow-Up Questions
 - **Optional web search** (requires `BRAVE_API_KEY`):
   - Search for company + role context via MCP Brave Search server
-  - Results included in `user_additions` to improve compatibility assessment and generation
+  - Results included in `user_additions` for better scoring and generation
   - Silently skipped if no API key is set
-- Compare resume against JD analysis
+- **Unified analysis** (1 LLM call):
+  - Send resume + structured work history + education + certifications + JD analysis together
+  - LLM sees everything as ONE knowledge source — no separate matching step
+  - Returns strengths, gaps, conflicts, and prioritized questions in one pass
+  - Gaps and conflicts are mixed naturally by importance, not separated
 - Show strengths (what already matches)
-- **Semantic experience bank matching** (1 batch LLM call):
-  - Send all gap skills + experience bank to LLM in ONE call
-  - LLM returns which experience bank entries are relevant to each gap
-  - Matches by meaning, not just exact name (e.g. "AI coding tools" matches "GitHub Copilot experience")
-  - Falls back to exact matching if LLM call fails
-- For each gap with matching experience bank entries:
-  - LLM synthesizes all related entries into a single coherent answer (1 LLM call per match)
-  - LLM checks for internal contradictions within the entries
-  - If conflicts → resolve via conversational Q&A before showing
-  - Show synthesized answer: "Based on what you've told us before: [answer]. Is this correct?"
-  - If yes → use it; if no → conversational Q&A to correct
-- For gaps with no match:
-  - Ask smart questions — ordered by importance to the JD
-  - Question style: simple, concrete with profession-appropriate examples
-  - Smart follow-up on "No" answers: suggest adjacent skills
-- Save new answers to experience bank
-- After all new answers saved → run conflict check (same behavior as Step 2b: date-aware, conversational Q&A, in-place updates, resume auto-correction)
+- **Conversational Q&A** — walk through each question in order:
+  - Gap questions and conflict clarifications in one natural flow
+  - Each answer saved to work history with `role_key` from the analysis
+  - User never sees raw work history entries — LLM manages the data
+- **Safety net conflict check** (1 LLM call):
+  - Quick pass over updated profile — should rarely find anything new
+  - Primary conflict detection happens inline during the unified analysis
 - Also ask generic questions: additional skills, what to emphasize, preferred title
 
 ### Step 8: Compatibility Assessment
@@ -149,13 +151,26 @@ Code must match this flow exactly. Update this file BEFORE changing code.
   "original_resume": "first uploaded resume, never modified",
   "writing_preferences": { "tone": "...", "bullet_length": "...", ... },
   "applications_since_review": 0,
-  "experience_bank": { "skill": "saved answer" },
+  "work_history": {
+    "Company | Title | Dates": { "topic": "answer from Q&A" },
+    "General": { "cross-cutting topic": "answer" }
+  },
+  "education": [{ "degree": "...", "school": "...", "year": "..." }],
+  "certifications": ["CKA", "AWS SAA"],
+  "schema_version": 2,
+  "experience_bank": {},
   "history": [{ "date", "company", "role", "match_score", "output_file" }],
   "preferences": { "format", "output_path", "model" },
   "created_at": "ISO timestamp",
   "updated_at": "ISO timestamp"
 }
 ```
+
+**Data principles:**
+- `work_history`: LLM-managed — user provides facts through Q&A, never directly edits
+- `education` and `certifications`: immutable facts extracted from resume
+- `experience_bank`: legacy field, cleared after migration to `work_history`
+- `schema_version`: 1 = flat (pre-migration), 2 = structured
 
 ## CLI Flags
 - `--format [docx|pdf|md|all]` — output format (default: docx)

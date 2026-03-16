@@ -49,7 +49,8 @@ resume-tailor/
 │   ├── session.py         # Session save/restore for --resume-session
 │   ├── resume_parser.py   # Parse input resume (text/docx/pdf)
 │   ├── jd_analyzer.py     # Analyze job description with Claude
-│   ├── gap_analyzer.py    # Compare resume vs JD requirements
+│   ├── gap_analyzer.py    # Compare resume vs JD requirements (REST API)
+│   ├── unified_analyzer.py # Unified profile-vs-JD analysis (CLI Step 7)
 │   ├── compatibility_assessor.py # Score resume-JD match
 │   ├── resume_generator.py # Generate tailored resume content via Claude
 │   ├── resume_reviewer.py # Review and improve base resume
