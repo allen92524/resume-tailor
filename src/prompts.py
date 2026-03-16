@@ -148,3 +148,13 @@ EXTRACT_RESUME_USER = _er[1]
 _es = _load("experience_synthesize.md")
 EXPERIENCE_SYNTHESIZE_SYSTEM = _es[0]
 EXPERIENCE_SYNTHESIZE_USER = _es[1]
+
+# Migration: extract education and certifications from resume
+_mef = _load("migrate_extract_facts.md")
+MIGRATE_EXTRACT_FACTS_SYSTEM = _mef[0]
+MIGRATE_EXTRACT_FACTS_USER = _mef[1]
+
+# Migration: group flat experience bank entries by work role
+_mge = _load("migrate_group_experience.md")
+MIGRATE_GROUP_EXPERIENCE_SYSTEM = _mge[0]
+MIGRATE_GROUP_EXPERIENCE_USER = _mge[1]

@@ -60,6 +60,12 @@ def review(ctx, model):
             click.echo(f"Error: {e}")
             sys.exit(1)
 
+    # Migrate profile if needed (flat experience_bank → structured work_history)
+    if prof.needs_migration:
+        from src.profile import migrate_profile
+
+        migrate_profile(prof, pname, model=model)
+
     if not prof.base_resume:
         click.echo("Error: No base resume in your profile.")
         sys.exit(1)

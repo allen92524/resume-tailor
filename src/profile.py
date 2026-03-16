@@ -23,6 +23,8 @@ from .config import (
     MAX_TOKENS_CONTACT_EXTRACTION,
     MAX_TOKENS_CONFLICT_CHECK,
     MAX_TOKENS_EXPERIENCE_MATCH,
+    MAX_TOKENS_MIGRATION,
+    PROFILE_SCHEMA_VERSION,
     DEFAULT_PROFILE,
     get_profile_dir,
     get_profile_path,
@@ -36,6 +38,10 @@ from .prompts import (
     CONFLICT_CHECK_USER,
     EXPERIENCE_BANK_MATCH_SYSTEM,
     EXPERIENCE_BANK_MATCH_USER,
+    MIGRATE_EXTRACT_FACTS_SYSTEM,
+    MIGRATE_EXTRACT_FACTS_USER,
+    MIGRATE_GROUP_EXPERIENCE_SYSTEM,
+    MIGRATE_GROUP_EXPERIENCE_USER,
 )
 
 logger = logging.getLogger(__name__)
@@ -851,6 +857,160 @@ def open_in_editor(filepath: str) -> None:
         )
     except subprocess.CalledProcessError as e:
         click.echo(f"Editor exited with error: {e}")
+
+
+def migrate_profile(
+    profile: Profile,
+    profile_name: str = DEFAULT_PROFILE,
+    model: str = DEFAULT_MODEL,
+) -> bool:
+    """Migrate a profile from flat experience_bank to structured work_history.
+
+    Extracts education/certifications from resume via LLM, then groups
+    flat experience bank entries by work role via LLM.
+    Auto-backs up the profile before migration.
+
+    Returns True if migration succeeded, False if skipped or failed.
+    """
+    if not profile.needs_migration:
+        return False
+
+    if not profile.base_resume:
+        logger.info("No resume in profile, skipping migration")
+        return False
+
+    click.echo(
+        click.style(
+            "\nUpgrading your profile to structured format...",
+            fg="cyan",
+            bold=True,
+        )
+    )
+
+    # Auto-backup before migration
+    backup_path = backup_profile(profile_name)
+    if backup_path:
+        click.echo(f"  Profile backed up to: {backup_path}")
+
+    # Step 1: Extract education and certifications from resume
+    click.echo("  Extracting education and certifications...")
+    try:
+        raw = call_llm(
+            model=model,
+            max_tokens=MAX_TOKENS_MIGRATION,
+            system=MIGRATE_EXTRACT_FACTS_SYSTEM,
+            user_content=MIGRATE_EXTRACT_FACTS_USER.format(
+                resume_text=profile.base_resume,
+            ),
+            purpose="migration: extract education/certs",
+        )
+        data = parse_json_response(raw)
+        profile.education = data.get("education", [])
+        profile.certifications = data.get("certifications", [])
+        if profile.education:
+            click.echo(f"    Found {len(profile.education)} education entries")
+        if profile.certifications:
+            click.echo(f"    Found {len(profile.certifications)} certifications")
+    except Exception as e:
+        logger.warning("Failed to extract education/certs: %s", e)
+        click.echo(f"  Warning: Could not extract education/certs ({e})")
+
+    # Step 2: Extract role keys from resume for grouping
+    roles = _extract_roles_from_resume(profile.base_resume)
+    if not roles:
+        # Fallback: put everything under General
+        logger.info("No roles detected, using General key")
+        profile.work_history = {"General": dict(profile.experience_bank)}
+        profile.schema_version = PROFILE_SCHEMA_VERSION
+        profile.experience_bank = {}
+        save_profile(profile, profile_name)
+        click.echo("  Migration complete (all entries under General).")
+        return True
+
+    click.echo(f"  Found {len(roles)} work roles. Grouping experience entries...")
+
+    # Step 3: Group experience bank entries by role via LLM
+    eb_text = "\n".join(
+        f"- {key}: {answer}" for key, answer in profile.experience_bank.items()
+    )
+    roles_text = "\n".join(f"- {role}" for role in roles)
+
+    try:
+        raw = call_llm(
+            model=model,
+            max_tokens=MAX_TOKENS_MIGRATION,
+            system=MIGRATE_GROUP_EXPERIENCE_SYSTEM,
+            user_content=MIGRATE_GROUP_EXPERIENCE_USER.format(
+                resume_text=profile.base_resume,
+                experience_bank=eb_text,
+                roles=roles_text,
+            ),
+            purpose="migration: group experience by role",
+        )
+        data = parse_json_response(raw)
+        work_history = data.get("work_history", {})
+
+        if work_history:
+            profile.work_history = work_history
+            profile.schema_version = PROFILE_SCHEMA_VERSION
+            profile.experience_bank = {}
+            save_profile(profile, profile_name)
+
+            total = sum(len(entries) for entries in work_history.values())
+            click.echo(f"  Migration complete: {total} entries across {len(work_history)} roles.")
+            return True
+        else:
+            logger.warning("LLM returned empty work_history, keeping flat format")
+            click.echo("  Warning: Could not group entries. Keeping existing format.")
+            return False
+    except Exception as e:
+        logger.warning("Migration grouping failed: %s", e)
+        click.echo(f"  Warning: Migration failed ({e}). Keeping existing format.")
+        return False
+
+
+def _extract_roles_from_resume(resume_text: str) -> list[str]:
+    """Extract work role keys from resume text using pattern matching.
+
+    Looks for patterns like "Title — Company, Dates" or "Company | Title | Dates".
+    Returns list of role key strings like "Company | Title | Dates".
+    """
+    import re
+
+    roles = []
+    lines = resume_text.splitlines()
+
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+
+        # Pattern: "Title — Company, Dates" or "Title - Company, Dates"
+        m = re.match(
+            r"^(.+?)\s*[—–-]\s*(.+?),\s*"
+            r"(\w+\.?\s+\d{4}\s*[—–-]\s*(?:\w+\.?\s+\d{4}|Present))",
+            line,
+        )
+        if m:
+            title, company, dates = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+            roles.append(f"{company} | {title} | {dates}")
+            continue
+
+        # Pattern: dates on next line after "Title — Company"
+        m2 = re.match(r"^(.+?)\s*[—–-]\s*(.+)$", line)
+        if m2 and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            dm = re.match(
+                r"^(\w+\.?\s+\d{4}\s*[—–-]\s*(?:\w+\.?\s+\d{4}|Present))$",
+                next_line,
+            )
+            if dm:
+                title = m2.group(1).strip()
+                company = m2.group(2).strip()
+                dates = dm.group(1).strip()
+                roles.append(f"{company} | {title} | {dates}")
+
+    return roles
 
 
 def backup_profile(profile_name: str = DEFAULT_PROFILE) -> str | None:

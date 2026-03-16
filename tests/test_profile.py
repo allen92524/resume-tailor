@@ -11,6 +11,8 @@ from src.profile import (
     save_profile,
     lookup_experience,
     save_experience,
+    get_all_experience,
+    get_experience_by_role,
     get_preferences,
     save_preferences,
     append_history,
@@ -21,6 +23,8 @@ from src.profile import (
     backup_profile,
     list_backups,
     restore_profile,
+    migrate_profile,
+    _extract_roles_from_resume,
 )
 from src.models import Profile, Identity
 
@@ -455,3 +459,87 @@ class TestCreateProfile:
             profile = create_profile(sample_resume)
 
         assert profile.original_resume == sample_resume
+
+
+class TestMigration:
+    def test_extract_roles_from_resume(self):
+        resume = (
+            "Jane Doe\n\n"
+            "Software Engineer III — F5 Networks\n"
+            "   Nov 2025 – Present\n\n"
+            "Software Engineer II — F5 Networks\n"
+            "   Apr 2022 – Oct 2025\n\n"
+            "Full Stack Developer — Vibrant America\n"
+            "   Jun 2021 – Mar 2022\n"
+        )
+        roles = _extract_roles_from_resume(resume)
+        assert len(roles) == 3
+        assert "F5 Networks" in roles[0]
+        assert "Software Engineer III" in roles[0]
+        assert "Vibrant America" in roles[2]
+
+    def test_extract_roles_empty_resume(self):
+        assert _extract_roles_from_resume("") == []
+        assert _extract_roles_from_resume("Just a name\nNo roles here") == []
+
+    def test_get_all_experience_from_work_history(self):
+        profile = Profile(
+            work_history={
+                "Acme | Eng | 2020": {"Python": "yes", "Go": "no"},
+                "Beta | Dev | 2019": {"Java": "a bit"},
+            }
+        )
+        flat = get_all_experience(profile)
+        assert flat == {"Python": "yes", "Go": "no", "Java": "a bit"}
+
+    def test_get_all_experience_fallback_to_experience_bank(self):
+        profile = Profile(
+            experience_bank={"Python": "10 years"},
+            work_history={},
+        )
+        flat = get_all_experience(profile)
+        assert flat == {"Python": "10 years"}
+
+    def test_get_experience_by_role(self):
+        profile = Profile(
+            work_history={
+                "Acme | Eng | 2020": {"Python": "yes"},
+            }
+        )
+        by_role = get_experience_by_role(profile)
+        assert "Acme | Eng | 2020" in by_role
+        assert by_role["Acme | Eng | 2020"]["Python"] == "yes"
+
+    def test_get_experience_by_role_fallback(self):
+        profile = Profile(
+            experience_bank={"Go": "3 years"},
+            work_history={},
+        )
+        by_role = get_experience_by_role(profile)
+        assert "General" in by_role
+        assert by_role["General"]["Go"] == "3 years"
+
+    def test_save_experience_writes_to_work_history(self, profile_dir):
+        profile = Profile(identity=Identity(name="Test"))
+        save_experience(profile, "Python", "10 years", role_key="Acme | Eng | 2020")
+        assert profile.work_history["Acme | Eng | 2020"]["Python"] == "10 years"
+        # Also in legacy experience_bank
+        assert profile.experience_bank["Python"] == "10 years"
+
+    def test_migrate_profile_skips_if_not_needed(self, profile_dir):
+        profile = Profile(
+            identity=Identity(name="Test"),
+            schema_version=2,
+            work_history={"Acme | Eng | 2020": {"Python": "yes"}},
+        )
+        result = migrate_profile(profile, model="claude")
+        assert result is False
+
+    def test_migrate_profile_skips_if_no_resume(self, profile_dir):
+        profile = Profile(
+            identity=Identity(name="Test"),
+            experience_bank={"Python": "10 years"},
+            schema_version=1,
+        )
+        result = migrate_profile(profile, model="claude")
+        assert result is False
