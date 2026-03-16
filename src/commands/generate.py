@@ -222,7 +222,7 @@ def generate(
                 click.echo("Checking for conflicts...")
                 conflicts = check_conflicts(prof, model=model)
                 if conflicts:
-                    resolve_conflicts(prof, conflicts, pname)
+                    resolve_conflicts(prof, conflicts, pname, model=model)
                 else:
                     click.echo(click.style("  No conflicts found.", fg="green"))
             else:
@@ -381,7 +381,7 @@ def generate(
                 click.echo("Checking for conflicts...")
                 conflicts = check_conflicts(prof, model=model)
                 if conflicts:
-                    resolve_conflicts(prof, conflicts, pname)
+                    resolve_conflicts(prof, conflicts, pname, model=model)
                 else:
                     click.echo(click.style("  No conflicts found.", fg="green"))
 
@@ -624,7 +624,7 @@ def generate(
                     click.echo("\nChecking for conflicts in your profile...")
                     conflicts = check_conflicts(prof, model=model)
                     if conflicts:
-                        resolve_conflicts(prof, conflicts, pname)
+                        resolve_conflicts(prof, conflicts, pname, model=model)
                     else:
                         click.echo(click.style("  No conflicts found.", fg="green"))
 

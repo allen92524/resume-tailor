@@ -605,11 +605,16 @@ def resolve_conflicts(
     profile: Profile,
     conflicts: list[dict[str, str]],
     profile_name: str = DEFAULT_PROFILE,
+    model: str = DEFAULT_MODEL,
 ) -> None:
-    """Walk through conflicts interactively and let the user resolve each one.
+    """Walk through conflicts interactively using conversational Q&A.
 
+    Uses the same follow-up engine as gap analysis so the LLM can ask
+    clarifying questions if the user's answer is unclear or incomplete.
     Updates the experience bank with corrected answers.
     """
+    from .conversation import conversational_qa
+
     if not conflicts:
         return
 
@@ -622,17 +627,24 @@ def resolve_conflicts(
     )
 
     for i, conflict in enumerate(conflicts, 1):
+        description = conflict.get("description", f"conflict_{i}")
+        source_a = conflict.get("source_a", "?")
+        source_b = conflict.get("source_b", "?")
+        question = conflict.get("question", "Which is correct?")
+
         click.echo(f"\n  Conflict {i}:")
-        click.echo(f"    A: {conflict.get('source_a', '?')}")
-        click.echo(f"    B: {conflict.get('source_b', '?')}")
-        answer = click.prompt(
-            f"    {conflict.get('question', 'Which is correct?')}",
-            default="",
-            show_default=False,
-        ).strip()
+        click.echo(f"    A: {source_a}")
+        click.echo(f"    B: {source_b}")
+
+        answer = conversational_qa(
+            context_type="profile conflict",
+            context_description=f"Conflict: {description}. "
+            f'Statement A: "{source_a}" vs Statement B: "{source_b}"',
+            initial_question=question,
+            model=model,
+        )
         if answer:
-            # Save the correction to experience bank under the conflict description
-            key = f"clarification: {conflict.get('description', f'conflict_{i}')}"
+            key = f"clarification: {description}"
             save_experience(profile, key, answer, profile_name)
 
     click.echo(click.style("  Conflicts resolved.", fg="green"))
