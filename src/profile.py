@@ -494,23 +494,23 @@ def first_run_setup(
 
     # Save answers to experience bank
     for skill, answer in experience_bank_entries.items():
-        save_experience(profile, skill, answer, profile_name)
+        save_experience(profile, skill, answer, profile_name, model=model)
 
     return profile
 
 
 def _find_duplicate_key(
     profile: Profile, skill: str, role_key: str
-) -> tuple[str, str] | None:
+) -> tuple[str, str, str] | None:
     """Find an existing work_history key that is a duplicate of *skill*.
 
-    Returns (existing_role, existing_key) if found, else None.
+    Returns (existing_role, existing_key, match_type) where match_type
+    is ``"exact"`` or ``"fuzzy"``.  Returns ``None`` if no match.
 
     Match strategy (in order):
-    1. Exact case-insensitive match in the target role → silent update
-    2. Exact case-insensitive match in any other role → return it
-    3. Fuzzy match: after stripping common prefixes like "clarification:",
-       check if one normalized key is a substring of the other.
+    1. Exact case-insensitive match → ``"exact"``
+    2. Fuzzy match: after stripping common prefixes like "clarification:",
+       check if one normalized key is a substring of the other → ``"fuzzy"``
     """
     skill_lower = skill.lower().strip()
     norm_skill = _normalize_key(skill_lower)
@@ -520,13 +520,13 @@ def _find_duplicate_key(
             key_lower = key.lower().strip()
             # Exact match
             if key_lower == skill_lower:
-                return (role, key)
+                return (role, key, "exact")
             # Fuzzy: normalized substring match
             norm_key = _normalize_key(key_lower)
             if norm_key and norm_skill and (
                 norm_key in norm_skill or norm_skill in norm_key
             ):
-                return (role, key)
+                return (role, key, "fuzzy")
     return None
 
 
@@ -543,12 +543,48 @@ def _normalize_key(key: str) -> str:
     return key
 
 
+def _merge_answers(
+    skill: str, old_answer: str, new_answer: str, model: str = DEFAULT_MODEL
+) -> tuple[str, str | None]:
+    """Use LLM to combine two answers about the same topic.
+
+    Returns (merged_answer, None) on success, or
+    (new_answer, conflict_description) when the answers contradict.
+    Falls back to keeping the new answer if the LLM call fails.
+    """
+    from .config import MAX_TOKENS_MERGE_ANSWERS
+    from .prompts import MERGE_ANSWERS_SYSTEM, MERGE_ANSWERS_USER
+
+    try:
+        raw = call_llm(
+            model=model,
+            max_tokens=MAX_TOKENS_MERGE_ANSWERS,
+            system=MERGE_ANSWERS_SYSTEM,
+            user_content=MERGE_ANSWERS_USER.format(
+                skill=skill,
+                old_answer=old_answer,
+                new_answer=new_answer,
+            ),
+            purpose="merge answers",
+        )
+        data = parse_json_response(raw)
+        action = data.get("action", "merge")
+        if action == "conflict":
+            return new_answer, data.get("conflict_description", "Conflicting answers")
+        merged = data.get("merged_answer", "")
+        return (merged if merged else new_answer), None
+    except Exception:
+        logger.warning("Answer merge LLM call failed, keeping new answer")
+        return new_answer, None
+
+
 def save_experience(
     profile: Profile,
     skill: str,
     answer: str,
     profile_name: str = DEFAULT_PROFILE,
     role_key: str = "General",
+    model: str = DEFAULT_MODEL,
 ) -> None:
     """Save a gap answer to the structured work history.
 
@@ -557,9 +593,10 @@ def save_experience(
     until migration is complete.
 
     Deduplication:
-    - Exact match (case-insensitive) in target role → silent update.
-    - Exact or fuzzy match in another role → ask user whether to update
-      the existing entry or save as new.
+    - Exact match (case-insensitive) in same role → silent update.
+    - Fuzzy match (any role) → LLM tries to combine the old and new
+      answers.  If conflict detected, asks user follow-up questions.
+    - Exact match in different role → asks user update-or-new.
     """
     if role_key not in profile.work_history:
         profile.work_history[role_key] = {}
@@ -567,19 +604,54 @@ def save_experience(
     dup = _find_duplicate_key(profile, skill, role_key)
 
     if dup:
-        dup_role, dup_key = dup
-        if dup_role == role_key:
-            # Same role, same topic → silently update the existing key
+        dup_role, dup_key, match_type = dup
+
+        if match_type == "exact" and dup_role == role_key:
+            # Same role, same key → silently update
             if dup_key != skill:
-                # Key casing/wording differs — remove old, save under new
                 del profile.work_history[role_key][dup_key]
             profile.work_history[role_key][skill] = answer
+
+        elif match_type == "fuzzy":
+            # Fuzzy match — LLM tries to combine, asks user on conflict
+            old_answer = profile.work_history[dup_role][dup_key]
+            merged, conflict = _merge_answers(skill, old_answer, answer, model)
+
+            if conflict:
+                # Conflict detected — ask user follow-up questions
+                from .conversation import conversational_qa
+
+                click.echo(
+                    click.style(
+                        f"\n  Conflict with existing answer for \"{dup_key}\":",
+                        fg="yellow",
+                    )
+                )
+                click.echo(f"    {conflict}")
+                resolved = conversational_qa(
+                    context_type="profile conflict",
+                    context_description=(
+                        f"Previous answer for \"{dup_key}\": \"{old_answer}\". "
+                        f"New answer: \"{answer}\". Conflict: {conflict}"
+                    ),
+                    initial_question="Which is correct, or can you clarify?",
+                    model=model,
+                )
+                final = resolved if resolved else answer
+            else:
+                final = merged
+
+            # Remove old key, save under new key in target role
+            del profile.work_history[dup_role][dup_key]
+            profile.work_history[role_key][skill] = final
+
         else:
-            # Different role — ask the user
+            # Exact match in different role — ask user
             click.echo(
-                f"\n  You already have a similar answer under [{dup_role}]:"
+                f"\n  You already have this answer under [{dup_role}]:"
             )
-            click.echo(f"    \"{dup_key}\": {profile.work_history[dup_role][dup_key][:120]}...")
+            old = profile.work_history[dup_role][dup_key]
+            click.echo(f"    \"{dup_key}\": {old[:120]}...")
             choice = click.prompt(
                 "  Update existing entry, or save as new?",
                 type=click.Choice(["update", "new"], case_sensitive=False),
@@ -818,7 +890,8 @@ def resolve_conflicts(
         if not updated_any:
             # Save under the description in General role
             save_experience(
-                profile, f"clarification: {description}", answer, profile_name
+                profile, f"clarification: {description}", answer, profile_name,
+                model=model,
             )
 
         if involves_resume:

@@ -421,7 +421,7 @@ def _edit_experience_bank_interactive(prof, pname: str) -> None:
                     model="claude",
                 )
                 if updated:
-                    save_experience(prof, skill, updated, pname, role_key=role)
+                    save_experience(prof, skill, updated, pname, role_key=role, model="claude")
                     changed = True
                     click.echo("      Updated.")
 

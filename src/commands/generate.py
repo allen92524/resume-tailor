@@ -329,7 +329,8 @@ def generate(
                         )
                         if updated:
                             save_experience(
-                                prof, skill, updated, pname, role_key=role
+                                prof, skill, updated, pname, role_key=role,
+                                model=model,
                             )
                             eb_changed = True
                             click.echo("      Updated.")
@@ -493,7 +494,7 @@ def generate(
                     )
 
                 # Save new info to experience bank and check for conflicts
-                save_experience(prof, "recent_updates", new_input, pname)
+                save_experience(prof, "recent_updates", new_input, pname, model=model)
                 click.echo("Checking for conflicts...")
                 conflicts = check_conflicts(prof, model=model)
                 if conflicts:
@@ -701,6 +702,7 @@ def generate(
                                 save_experience(
                                     prof, q.skill, answer, pname,
                                     role_key=q.suggested_role or "General",
+                                    model=model,
                                 )
                                 new_answers_saved = True
 
