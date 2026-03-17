@@ -82,6 +82,14 @@ def unified_analysis(
     # Format certifications
     cert_text = ", ".join(profile.certifications) if profile.certifications else "(None)"
 
+    # Build explicit list of already-answered topics
+    answered = []
+    for role, entries in profile.work_history.items():
+        for skill in entries:
+            if skill:  # skip empty keys
+                answered.append(f"- {skill} (role: {role})")
+    answered_text = "\n".join(answered) if answered else "(None yet)"
+
     response_text = call_llm(
         model=model,
         max_tokens=MAX_TOKENS_UNIFIED_ANALYSIS,
@@ -92,6 +100,7 @@ def unified_analysis(
             education=edu_text,
             certifications=cert_text,
             jd_analysis=json.dumps(jd_analysis.to_dict(), indent=2),
+            answered_topics=answered_text,
             today=date.today().strftime("%B %d, %Y"),
         ),
         purpose="unified analysis",

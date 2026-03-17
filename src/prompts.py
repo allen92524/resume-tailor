@@ -163,3 +163,8 @@ MIGRATE_GROUP_EXPERIENCE_USER = _mge[1]
 _ua = _load("unified_analysis.md")
 UNIFIED_ANALYSIS_SYSTEM = _ua[0]
 UNIFIED_ANALYSIS_USER = _ua[1]
+
+# Merge answers (combine or flag conflicts between duplicate entries)
+_ma = _load("merge_answers.md")
+MERGE_ANSWERS_SYSTEM = _ma[0]
+MERGE_ANSWERS_USER = _ma[1]

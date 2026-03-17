@@ -122,6 +122,6 @@ def review(ctx, model):
 
             # Save answers to work history under "Review Improvements"
             for issue, answer in answers.items():
-                save_experience(prof, issue, answer, pname)
+                save_experience(prof, issue, answer, pname, model=model)
         else:
             click.echo("Keeping existing resume.")

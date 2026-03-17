@@ -25,6 +25,8 @@ from src.profile import (
     restore_profile,
     migrate_profile,
     _extract_roles_from_resume,
+    _find_duplicate_key,
+    _normalize_key,
 )
 from src.models import Profile, Identity
 
@@ -526,6 +528,184 @@ class TestMigration:
         # Also in legacy experience_bank
         assert profile.experience_bank["Python"] == "10 years"
 
+    def test_save_experience_dedup_exact_same_role(self, profile_dir):
+        """Exact duplicate in same role → silently update."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={"General": {"Timeline inconsistency": "old answer"}},
+        )
+        save_experience(profile, "Timeline inconsistency", "new answer", role_key="General")
+        assert profile.work_history["General"]["Timeline inconsistency"] == "new answer"
+        assert len(profile.work_history["General"]) == 1
+
+    def test_save_experience_dedup_case_insensitive(self, profile_dir):
+        """Case-insensitive exact match in same role → silently update."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={"General": {"timeline inconsistency": "old answer"}},
+        )
+        save_experience(profile, "Timeline Inconsistency", "new answer", role_key="General")
+        # Old key removed, new key used
+        assert "Timeline Inconsistency" in profile.work_history["General"]
+        assert len(profile.work_history["General"]) == 1
+
+    @patch("src.profile._merge_answers", return_value=("combined answer", None))
+    def test_save_experience_dedup_fuzzy_merges_via_llm(self, mock_merge, profile_dir):
+        """Fuzzy match: LLM merges old and new answers."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={
+                "General": {
+                    "clarification: Timeline issue with SDE III position": "old"
+                }
+            },
+        )
+        save_experience(
+            profile, "Timeline issue with SDE III position", "new", role_key="General"
+        )
+        mock_merge.assert_called_once()
+        assert len(profile.work_history["General"]) == 1
+        assert profile.work_history["General"]["Timeline issue with SDE III position"] == "combined answer"
+
+    @patch("src.conversation.conversational_qa", return_value="resolved answer")
+    @patch("src.profile._merge_answers", return_value=("new", "dates conflict"))
+    def test_save_experience_dedup_fuzzy_conflict_asks_user(self, mock_merge, mock_qa, profile_dir):
+        """Fuzzy match with conflict: asks user follow-up questions."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={
+                "General": {
+                    "clarification: Timeline issue": "old"
+                }
+            },
+        )
+        save_experience(
+            profile, "Timeline issue", "new", role_key="General"
+        )
+        mock_qa.assert_called_once()
+        assert profile.work_history["General"]["Timeline issue"] == "resolved answer"
+
+    @patch("src.profile._merge_answers", return_value=("merged cross-role", None))
+    def test_save_experience_dedup_fuzzy_cross_role_merges(self, mock_merge, profile_dir):
+        """Fuzzy match in different role: LLM merges, moves to target role."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={
+                "Acme | Eng | 2020": {
+                    "clarification: GPU experience": "none"
+                },
+            },
+        )
+        save_experience(
+            profile, "GPU experience", "some GPU work", role_key="General"
+        )
+        mock_merge.assert_called_once()
+        # Old entry removed, merged into target role
+        assert "clarification: GPU experience" not in profile.work_history.get("Acme | Eng | 2020", {})
+        assert profile.work_history["General"]["GPU experience"] == "merged cross-role"
+
+    @patch("click.prompt", return_value="update")
+    def test_save_experience_dedup_exact_cross_role_asks_user(self, mock_prompt, profile_dir):
+        """Exact match in different role → asks user, updates on 'update'."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={
+                "Acme | Eng | 2020": {"GPU experience": "none"},
+            },
+        )
+        save_experience(
+            profile, "GPU experience", "some GPU work", role_key="General"
+        )
+        mock_prompt.assert_called_once()
+        # Old entry removed, new one saved under requested role
+        assert "GPU experience" not in profile.work_history.get("Acme | Eng | 2020", {})
+        assert profile.work_history["General"]["GPU experience"] == "some GPU work"
+
+    @patch("click.prompt", return_value="new")
+    def test_save_experience_dedup_exact_cross_role_save_new(self, mock_prompt, profile_dir):
+        """Exact match in different role → user chooses 'new', both kept."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={
+                "Acme | Eng | 2020": {"GPU experience": "none"},
+            },
+        )
+        save_experience(
+            profile, "GPU experience", "some GPU work", role_key="General"
+        )
+        # Both entries exist
+        assert profile.work_history["Acme | Eng | 2020"]["GPU experience"] == "none"
+        assert profile.work_history["General"]["GPU experience"] == "some GPU work"
+
+    def test_save_experience_no_dup_new_topic(self, profile_dir):
+        """Completely new topic → saved without prompt."""
+        profile = Profile(
+            identity=Identity(name="Test"),
+            work_history={"General": {"Python": "10 years"}},
+        )
+        save_experience(profile, "Kubernetes", "5 years", role_key="General")
+        assert profile.work_history["General"]["Kubernetes"] == "5 years"
+        assert profile.work_history["General"]["Python"] == "10 years"
+
+
+class TestNormalizeKey:
+    def test_strips_clarification_prefix(self):
+        assert _normalize_key("clarification: timeline issue") == "timeline issue"
+
+    def test_strips_articles(self):
+        assert _normalize_key("the timeline issue") == "timeline issue"
+
+    def test_collapses_whitespace(self):
+        assert _normalize_key("  timeline   issue  ") == "timeline issue"
+
+
+class TestFindDuplicateKey:
+    def test_exact_match_same_role(self):
+        profile = Profile(
+            identity=Identity(name="T"),
+            work_history={"General": {"Python": "yes"}},
+        )
+        result = _find_duplicate_key(profile, "Python", "General")
+        assert result == ("General", "Python", "exact")
+
+    def test_fuzzy_match_clarification(self):
+        profile = Profile(
+            identity=Identity(name="T"),
+            work_history={
+                "General": {"clarification: SDE III timeline": "confirmed"}
+            },
+        )
+        result = _find_duplicate_key(profile, "SDE III timeline", "General")
+        assert result == ("General", "clarification: SDE III timeline", "fuzzy")
+
+    def test_no_match(self):
+        profile = Profile(
+            identity=Identity(name="T"),
+            work_history={"General": {"Python": "yes"}},
+        )
+        result = _find_duplicate_key(profile, "Kubernetes", "General")
+        assert result is None
+
+    def test_substring_match(self):
+        profile = Profile(
+            identity=Identity(name="T"),
+            work_history={
+                "General": {"Timeline issue with Software Engineer III position": "ok"}
+            },
+        )
+        result = _find_duplicate_key(profile, "Timeline issue", "General")
+        assert result is not None
+
+    def test_empty_key_skipped(self):
+        profile = Profile(
+            identity=Identity(name="T"),
+            work_history={"General": {"": "empty", "Python": "yes"}},
+        )
+        result = _find_duplicate_key(profile, "Python", "General")
+        assert result == ("General", "Python", "exact")
+
+
+class TestMigrateProfile:
     def test_migrate_profile_skips_if_not_needed(self, profile_dir):
         profile = Profile(
             identity=Identity(name="Test"),
