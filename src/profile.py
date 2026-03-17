@@ -499,6 +499,50 @@ def first_run_setup(
     return profile
 
 
+def _find_duplicate_key(
+    profile: Profile, skill: str, role_key: str
+) -> tuple[str, str] | None:
+    """Find an existing work_history key that is a duplicate of *skill*.
+
+    Returns (existing_role, existing_key) if found, else None.
+
+    Match strategy (in order):
+    1. Exact case-insensitive match in the target role → silent update
+    2. Exact case-insensitive match in any other role → return it
+    3. Fuzzy match: after stripping common prefixes like "clarification:",
+       check if one normalized key is a substring of the other.
+    """
+    skill_lower = skill.lower().strip()
+    norm_skill = _normalize_key(skill_lower)
+
+    for role, entries in profile.work_history.items():
+        for key in entries:
+            key_lower = key.lower().strip()
+            # Exact match
+            if key_lower == skill_lower:
+                return (role, key)
+            # Fuzzy: normalized substring match
+            norm_key = _normalize_key(key_lower)
+            if norm_key and norm_skill and (
+                norm_key in norm_skill or norm_skill in norm_key
+            ):
+                return (role, key)
+    return None
+
+
+def _normalize_key(key: str) -> str:
+    """Strip common prefixes and noise from a work_history key for comparison."""
+    import re
+
+    # Strip "clarification:" prefix
+    key = re.sub(r"^clarification:\s*", "", key)
+    # Strip leading articles and filler
+    key = re.sub(r"^(the|a|an)\s+", "", key)
+    # Collapse whitespace
+    key = re.sub(r"\s+", " ", key).strip()
+    return key
+
+
 def save_experience(
     profile: Profile,
     skill: str,
@@ -511,10 +555,44 @@ def save_experience(
     Stores under work_history[role_key][skill] = answer.
     Also writes to legacy experience_bank for backward compatibility
     until migration is complete.
+
+    Deduplication:
+    - Exact match (case-insensitive) in target role → silent update.
+    - Exact or fuzzy match in another role → ask user whether to update
+      the existing entry or save as new.
     """
     if role_key not in profile.work_history:
         profile.work_history[role_key] = {}
-    profile.work_history[role_key][skill] = answer
+
+    dup = _find_duplicate_key(profile, skill, role_key)
+
+    if dup:
+        dup_role, dup_key = dup
+        if dup_role == role_key:
+            # Same role, same topic → silently update the existing key
+            if dup_key != skill:
+                # Key casing/wording differs — remove old, save under new
+                del profile.work_history[role_key][dup_key]
+            profile.work_history[role_key][skill] = answer
+        else:
+            # Different role — ask the user
+            click.echo(
+                f"\n  You already have a similar answer under [{dup_role}]:"
+            )
+            click.echo(f"    \"{dup_key}\": {profile.work_history[dup_role][dup_key][:120]}...")
+            choice = click.prompt(
+                "  Update existing entry, or save as new?",
+                type=click.Choice(["update", "new"], case_sensitive=False),
+                default="update",
+            )
+            if choice == "update":
+                del profile.work_history[dup_role][dup_key]
+                profile.work_history[role_key][skill] = answer
+            else:
+                profile.work_history[role_key][skill] = answer
+    else:
+        profile.work_history[role_key][skill] = answer
+
     # Keep legacy experience_bank in sync for pre-migration code paths
     profile.experience_bank[skill] = answer
     save_profile(profile, profile_name)

@@ -17,6 +17,9 @@ Compare this candidate's profile against the target job description.
 **Job Description Analysis:**
 {jd_analysis}
 
+**Topics already answered (DO NOT re-ask):**
+{answered_topics}
+
 Today's date is {today}.
 
 Perform a unified analysis:
@@ -55,5 +58,5 @@ Rules:
 - Do NOT flag dates that are valid relative to today's date
 - Maximum 10 questions total (prioritize the most impactful ones)
 - Each question should ask for ONE specific fact
-- If the work history already has a good answer for a skill, do NOT ask about it again — only ask if the answer is missing, weak, or contradictory
+- CRITICAL: Check the "Topics already answered" list above BEFORE writing any question. If a topic there covers the same subject (even with different wording), SKIP it entirely. The candidate has already provided this information in a prior session. Only re-ask if the existing answer is genuinely contradictory with other data.
 - For suggested_role: use the exact role key from the work history if the question relates to a specific job, or "General" for cross-cutting topics
