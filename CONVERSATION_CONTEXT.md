@@ -34,6 +34,10 @@ Claude Code should read this to understand the project history and design philos
 19. **LLM-managed structured work history** — replaced flat `experience_bank` with `work_history` grouped by `"Company | Title | Dates"`. Added `education` (list) and `certifications` (list) as immutable facts. Users never directly edit work history — all changes go through conversational Q&A. Existing profiles auto-migrate on first `generate` (LLM groups entries by role, extracts education/certs from resume, auto-backup before migration).
 20. **MCP integration (Model Context Protocol)** — URL fetching for JD input (Step 5) and reference resumes (Step 4) via `mcp-server-fetch`. Optional Brave Search for company research (Step 7, needs `BRAVE_API_KEY`). Most JS-rendered job sites (LinkedIn, Greenhouse, etc.) fail gracefully with fallback to manual paste.
 21. **URL extraction validation** — fetched pages are truncated to 30K chars before LLM processing. LLM responses are checked for apology/failure signals and minimum word count (150+ words for a real JD) to prevent showing error messages as job descriptions.
+22. **Smart answer deduplication** — when saving gap answers to work history, exact matches in the same role silently update. Fuzzy matches (e.g., "Timeline inconsistency" vs "clarification: Timeline issue...") trigger an LLM merge: if compatible, answers are combined silently; if conflicting, user is asked follow-up questions via conversational Q&A. Exact matches across different roles ask "update or new?".
+23. **Answered topics skip list** — unified analysis prompt receives an explicit list of topics already answered in work history so the LLM cannot re-ask questions the user already addressed in previous sessions.
+24. **Profile edit menu** — `profile edit` shows 3 options: (1) Resume via full-screen prompt_toolkit editor, (2) Contact info via field-by-field prompts, (3) Work history via Q&A review. Each approach chosen deliberately — see inline comments in code for rationale.
+25. **Profile picker** — if the requested profile doesn't exist, auto-detect existing profiles and show a numbered menu instead of failing silently.
 
 ## Known Issues to Watch
 - Local Ollama models produce lower quality output than Claude API
@@ -43,10 +47,11 @@ Claude Code should read this to understand the project history and design philos
 - Docker path conversion needed for file access inside containers
 - Most job board URLs (LinkedIn, Greenhouse, Ashby, Lever) are JS-rendered and fail MCP fetch — users must paste JD manually for these sites
 - Chinese translations (README_CN.md, USAGE_CN.md) need updating with recent features
+- General bucket in work history accumulates entries that should be under specific roles — needs periodic redistribution
 
 ## Testing Requirements
 - Run `make lint` and `make test` before every commit
-- 527+ tests must pass
+- 543+ tests must pass
 - Test with real Docker containers, not just mocked unit tests
 - Test on different machines (WSL, Mac) to catch platform issues
 - Use E2E_CHECKLIST.md for manual testing before releases
