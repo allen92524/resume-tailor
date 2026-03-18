@@ -128,7 +128,7 @@ Done! Your tailored resume has been saved to:
 - **Remembers everything** — save your resume once, reuse it for every application
 - **Smart questions** — only asks about gaps between your resume and the job posting
 - **Match score** — see a 0-100% compatibility score before generating
-- **Experience bank** — remembers your answers so you never retype the same thing
+- **Work history** — remembers your answers grouped by role so you never retype the same thing
 - **Resume review** — get AI feedback to improve your base resume
 - **Multiple formats** — DOCX, PDF, or Markdown output
 - **ATS-friendly** — clean formatting that passes automated resume screening
@@ -217,7 +217,7 @@ docker compose run --rm resume-tailor generate --reference /app/colleague_resume
 
 ### Resume for someone else (multiple profiles)
 
-Each profile has its own saved resume, experience bank, and history.
+Each profile has its own saved resume, work history, and application history.
 
 ```bash
 # Local

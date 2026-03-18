@@ -5,7 +5,7 @@ A CLI tool that takes a user's existing resume and a target job description (JD)
 
 ## Tech Stack
 - **Language:** Python 3.12+
-- **AI:** Anthropic Claude API (`anthropic` SDK), local Ollama models (`httpx`)
+- **AI:** Anthropic Claude API (`anthropic` SDK), local Ollama models (`httpx`), MCP (Model Context Protocol) for URL fetching and web search
 - **Document Generation:** `python-docx` for DOCX output, LibreOffice for PDF conversion
 - **CLI Framework:** `click` for CLI interface
 - **Resume Parsing:** `python-docx` for DOCX input, `PyPDF2` for PDF input
@@ -51,6 +51,8 @@ resume-tailor/
 │   ├── jd_analyzer.py     # Analyze job description with Claude
 │   ├── gap_analyzer.py    # Compare resume vs JD requirements (REST API)
 │   ├── unified_analyzer.py # Unified profile-vs-JD analysis (CLI Step 7)
+│   ├── conversation.py    # Conversational Q&A engine (follow-ups)
+│   ├── resume_enricher.py # Enrich resume via targeted Q&A
 │   ├── compatibility_assessor.py # Score resume-JD match
 │   ├── resume_generator.py # Generate tailored resume content via Claude
 │   ├── resume_reviewer.py # Review and improve base resume
@@ -113,8 +115,16 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - All prompts stored in `src/prompts/` as Markdown template files, loaded by `src/prompts.py`
 - Shared rules in `src/prompts/shared_rules.md`, injected via `{%SECTION%}` markers
 - Use structured output (JSON) for parsed data
-- API calls: JD analysis, gap analysis, compatibility assessment, resume generation, resume review/improve, contact extraction
+- API calls: JD analysis, unified analysis (gaps + conflicts + questions), compatibility assessment, resume generation, resume review/improve, contact extraction, answer merging, conflict check
 - Each API call tracked with OpenTelemetry spans and Prometheus metrics via `src/telemetry.py`
+
+### Profile Data Model
+- **Structured work history**: experiences grouped by `"Company | Title | Dates"` role key, with skill/answer pairs per role
+- **Immutable facts**: `identity` (name, email, etc.), `education`, `certifications` — set once, never change
+- **Mutable facts**: `work_history` — evolves through Q&A, LLM manages the data (user never directly edits)
+- **Deduplication**: exact matches silently update; fuzzy matches use LLM to merge or flag conflicts
+- **Migration**: old flat `experience_bank` auto-migrates to structured `work_history` on first run (schema_version 1 → 2)
+- **Conflict resolution**: LLM checks for contradictions, uses conversational Q&A to resolve with user
 
 ### MCP Integration (Model Context Protocol)
 - `src/mcp_client.py` wraps MCP client SDK for fetching URLs and web search
@@ -173,7 +183,7 @@ See [FLOW.md](FLOW.md) for the authoritative step-by-step flow.
 - [x] Add follow-up questions after resume/JD input (gap analysis)
 - [x] Compatibility assessment with match score
 - [x] Add `--verbose` flag to show debug logging
-- [x] Profile system with experience bank and application history
+- [x] Profile system with structured work history and application history
 - [x] Resume review and improvement workflow
 - [x] Session save/restore (`--resume-session`)
 - [x] Multi-profile support (`--profile`)

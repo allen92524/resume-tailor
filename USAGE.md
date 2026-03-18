@@ -132,7 +132,7 @@ python src/main.py generate --skip-questions --skip-assessment --format pdf
 
 ## I want to set up a profile for someone else
 
-Use the `--profile` flag to create a separate profile. Each profile has its own resume, experience bank, and history.
+Use the `--profile` flag to create a separate profile. Each profile has its own resume, work history, and application history.
 
 ```bash
 # Set up for your wife
