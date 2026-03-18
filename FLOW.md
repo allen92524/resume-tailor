@@ -188,7 +188,7 @@ Code must match this flow exactly. Update this file BEFORE changing code.
 - `profile update` — interactively update identity fields
 - `profile reset` — delete profile and start over
 - `profile reset-baseline` — revert base_resume back to original_resume
-- `profile edit` — interactive editor (resume, contact info, or experience bank Q&A review)
+- `profile edit` — interactive editor (resume, contact info, or work history Q&A review)
 - `profile export` — export as markdown
 - `profile backup` — create timestamped backup
 - `profile restore` — restore from backup
